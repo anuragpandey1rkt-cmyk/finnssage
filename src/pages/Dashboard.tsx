@@ -24,6 +24,10 @@ import { DashboardLayout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle, MetricCard } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useFinancial } from "@/context/FinancialContext";
+import { useCurrency } from "@/context/CurrencyContext";
+import { CurrencyToggle } from "@/components/CurrencyToggle";
+import { FinancialHealthMeter } from "@/components/FinancialHealthMeter";
 
 // Default mock data (fallback)
 const defaultAccountBalances = [
@@ -55,6 +59,7 @@ const insights = [
 ];
 
 export default function Dashboard() {
+  const { format, symbol } = useCurrency();
   const [financials, setFinancials] = useState({
     income: 8400,
     expenses: 5890,
@@ -107,6 +112,11 @@ export default function Dashboard() {
   return (
     <DashboardLayout title="Dashboard" subtitle="Your financial overview">
       <div className="space-y-6">
+        {/* Currency Toggle */}
+        <div className="flex justify-end">
+          <CurrencyToggle />
+        </div>
+
         {/* Net Worth Section */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <MetricCard trend="up" className="lg:col-span-2">
@@ -114,7 +124,7 @@ export default function Dashboard() {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Net Worth</p>
                 <h2 className="mt-2 text-3xl font-bold tracking-tight">
-                  ${financials.netWorth.toLocaleString()}
+                  {format(financials.netWorth)}
                 </h2>
                 <div className="mt-2 flex items-center gap-2">
                   <Badge variant="success" className="gap-1">
@@ -132,13 +142,13 @@ export default function Dashboard() {
               <div className="p-3 rounded-lg bg-success/10 border border-success/20">
                 <p className="text-xs text-muted-foreground">Assets</p>
                 <p className="text-lg font-semibold text-success">
-                  ${Math.round(financials.netWorth * 1.2).toLocaleString()}
+                  {format(Math.round(financials.netWorth * 1.2))}
                 </p>
               </div>
               <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
                 <p className="text-xs text-muted-foreground">Liabilities</p>
                 <p className="text-lg font-semibold text-destructive">
-                  ${Math.round(financials.netWorth * 0.2).toLocaleString()}
+                  {format(Math.round(financials.netWorth * 0.2))}
                 </p>
               </div>
             </div>
@@ -159,7 +169,7 @@ export default function Dashboard() {
                     <span className="text-sm">Income</span>
                   </div>
                   <span className="font-semibold text-success">
-                    +${financials.income.toLocaleString()}
+                    +{format(financials.income)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -168,14 +178,14 @@ export default function Dashboard() {
                     <span className="text-sm">Expenses</span>
                   </div>
                   <span className="font-semibold text-destructive">
-                    -${financials.expenses.toLocaleString()}
+                    -{format(financials.expenses)}
                   </span>
                 </div>
                 <div className="h-px bg-border" />
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Net Savings</span>
                   <span className="text-lg font-bold text-success">
-                    +${financials.savings.toLocaleString()}
+                    +{format(financials.savings)}
                   </span>
                 </div>
                 {/* Progress bar */}
@@ -227,7 +237,7 @@ export default function Dashboard() {
                       className={`font-semibold ${account.balance < 0 ? "text-destructive" : "text-foreground"
                         }`}
                     >
-                      {account.balance < 0 ? "-" : ""}$
+                      {account.balance < 0 ? "-" : ""}{symbol}
                       {Math.abs(account.balance).toLocaleString()}
                     </span>
                   </div>
@@ -236,8 +246,14 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
+          {/* Financial Health Meter */}
+          <FinancialHealthMeter />
+        </div>
+
+        {/* AI Insights Section */}
+        <div className="grid gap-6 lg:grid-cols-3">
           {/* AI Insights */}
-          <Card>
+          <Card className="lg:col-span-2">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-primary" />
