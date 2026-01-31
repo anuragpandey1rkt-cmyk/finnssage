@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { 
-  Eye, 
-  EyeOff, 
-  Mail, 
-  Lock, 
-  Sparkles, 
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  Sparkles,
   ArrowRight,
   Github,
   Chrome,
@@ -20,7 +20,7 @@ export default function Login() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    navigate("/");
+    navigate("/onboarding");
   };
 
   return (
@@ -52,10 +52,10 @@ export default function Login() {
             platform
           </h1>
           <p className="text-lg text-muted-foreground max-w-md">
-            Make smarter financial decisions with real-time insights, 
+            Make smarter financial decisions with real-time insights,
             credit optimization, and personalized recommendations.
           </p>
-          
+
           {/* Feature highlights */}
           <div className="grid grid-cols-2 gap-4 pt-6">
             {[
@@ -99,8 +99,8 @@ export default function Login() {
                 {isLogin ? "Welcome back" : "Create an account"}
               </CardTitle>
               <CardDescription>
-                {isLogin 
-                  ? "Enter your credentials to access your account" 
+                {isLogin
+                  ? "Enter your credentials to access your account"
                   : "Get started with your financial journey"}
               </CardDescription>
             </CardHeader>

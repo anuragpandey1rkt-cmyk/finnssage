@@ -16,6 +16,8 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
+import Onboarding from "./pages/Onboarding";
+
 
 const queryClient = new QueryClient();
 
@@ -28,6 +30,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/consent" element={<Consent />} />
           <Route path="/spending" element={<Spending />} />
           <Route path="/credit-optimizer" element={<CreditOptimizer />} />
