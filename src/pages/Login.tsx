@@ -6,21 +6,154 @@ import {
   Lock,
   Sparkles,
   ArrowRight,
-  Github,
   Chrome,
+  User,
+
+  Loader2,
+  Smartphone,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
-  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Email Auth State
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+
+  // Mobile Auth State
+  const [authMethod, setAuthMethod] = useState<"email" | "mobile">("email");
+  const [mobileNumber, setMobileNumber] = useState("");
+  const [otp, setOtp] = useState("");
+  const [showOtpInput, setShowOtpInput] = useState(false);
+
+  // General State
+  const [isTermsAccepted, setIsTermsAccepted] = useState(false);
+
+  const navigate = useNavigate();
+  const { signIn, signUp, signInWithGoogle, signInWithMobileMock } = useAuth();
+  const { toast } = useToast();
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate("/onboarding");
+    if (!isTermsAccepted) {
+      toast({
+        title: "Terms required",
+        description: "Please accept the terms and conditions to proceed.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      if (authMethod === "mobile") {
+        // Mobile Auth Flow
+        if (!showOtpInput) {
+          // Request OTP
+          if (mobileNumber.length < 10) {
+            toast({ title: "Invalid number", description: "Please enter a valid mobile number", variant: "destructive" });
+            setIsLoading(false);
+            return;
+          }
+          // Simulate sending OTP
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          setShowOtpInput(true);
+          toast({
+            title: "OTP Sent",
+            description: "Use code 1234 for testing purposes.",
+          });
+          setIsLoading(false);
+        } else {
+          // Verify OTP
+          const { error } = await signInWithMobileMock(mobileNumber, otp);
+          if (error) {
+            toast({ title: "Verification failed", description: error.message, variant: "destructive" });
+          } else {
+            toast({ title: "Success", description: "Mobile verification successful!" });
+            navigate("/");
+          }
+        }
+        return;
+      }
+
+      // Email Auth Flow
+      if (isLogin) {
+        const { error } = await signIn(email, password);
+        if (error) {
+          toast({
+            title: "Login failed",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Welcome back!",
+            description: "Redirecting to your dashboard...",
+          });
+          navigate("/");
+        }
+      } else {
+        if (!fullName.trim()) {
+          toast({
+            title: "Name required",
+            description: "Please enter your full name",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+        const { error } = await signUp(email, password, fullName);
+        if (error) {
+          toast({
+            title: "Signup failed",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Account created!",
+            description: "Please check your email to verify your account.",
+          });
+        }
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    const { error } = await signInWithGoogle();
+    if (error) {
+      toast({
+        title: "Google login failed",
+        description: error.message,
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
+    // If successful, user will be redirected by Supabase
   };
 
   return (
@@ -105,72 +238,145 @@ export default function Login() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {!isLogin && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Full Name</label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="John Doe"
-                        className="w-full h-11 pl-4 pr-4 rounded-lg bg-secondary/50 border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                      />
+              <Tabs defaultValue="email" value={authMethod} onValueChange={(v) => setAuthMethod(v as "email" | "mobile")} className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-4">
+                  <TabsTrigger value="email">Email</TabsTrigger>
+                  <TabsTrigger value="mobile">Mobile Number</TabsTrigger>
+                </TabsList>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <TabsContent value="email" className="space-y-4 mt-0">
+                    {!isLogin && (
+                      <div className="space-y-2">
+                        <Label>Full Name</Label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            type="text"
+                            placeholder="John Doe"
+                            value={fullName}
+                            onChange={(e) => setFullName(e.target.value)}
+                            className="pl-10"
+                            required={!isLogin && authMethod === 'email'}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          type="email"
+                          placeholder="you@example.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="pl-10"
+                          required={authMethod === 'email'}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          type={showPassword ? "text" : "password"}
+                          placeholder="••••••••"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="pl-10 pr-10"
+                          required={authMethod === 'email'}
+                          minLength={6}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="mobile" className="space-y-4 mt-0">
+                    <div className="space-y-2">
+                      <Label>Mobile Number</Label>
+                      <div className="relative">
+                        <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          type="tel"
+                          placeholder="+1 (555) 000-0000"
+                          value={mobileNumber}
+                          onChange={(e) => setMobileNumber(e.target.value)}
+                          className="pl-10"
+                          disabled={showOtpInput}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        We'll send you a verification code.
+                      </p>
+                    </div>
+
+                    {showOtpInput && (
+                      <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                        <Label>Verification Code</Label>
+                        <div className="relative">
+                          <CheckCircle2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
+                          <Input
+                            type="text"
+                            placeholder="1234"
+                            value={otp}
+                            onChange={(e) => setOtp(e.target.value)}
+                            className="pl-10 tracking-widest"
+                            maxLength={4}
+                          />
+                        </div>
+                        <p className="text-xs text-blue-500 font-medium">
+                          Use code 1234 mostly for testing.
+                        </p>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  {/* Mandatory Terms Checkbox */}
+                  <div className="flex items-start space-x-2 pt-2">
+                    <Checkbox
+                      id="terms"
+                      checked={isTermsAccepted}
+                      onCheckedChange={(c) => setIsTermsAccepted(!!c)}
+                    />
+                    <div className="grid gap-1.5 leading-none">
+                      <label
+                        htmlFor="terms"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        I agree to the <a href="#" className="text-primary hover:underline">Terms of Service</a> and <a href="#" className="text-primary hover:underline">Privacy Policy</a>
+                      </label>
+                      <p className="text-xs text-muted-foreground">
+                        Required to proceed.
+                      </p>
                     </div>
                   </div>
-                )}
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Email</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <input
-                      type="email"
-                      placeholder="you@example.com"
-                      className="w-full h-11 pl-10 pr-4 rounded-lg bg-secondary/50 border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      className="w-full h-11 pl-10 pr-10 rounded-lg bg-secondary/50 border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {showPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {isLogin && (
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" className="w-4 h-4 rounded border-border bg-secondary" />
-                      <span className="text-sm text-muted-foreground">Remember me</span>
-                    </label>
-                    <button type="button" className="text-sm text-primary hover:underline">
-                      Forgot password?
-                    </button>
-                  </div>
-                )}
-
-                <Button type="submit" className="w-full" size="lg">
-                  {isLogin ? "Sign In" : "Create Account"}
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-              </form>
+                  <Button type="submit" className="w-full" size="lg" disabled={isLoading || !isTermsAccepted}>
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        {authMethod === 'mobile'
+                          ? (showOtpInput ? "Verify & Login" : "Get OTP")
+                          : (isLogin ? "Sign In" : "Create Account")
+                        }
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </Tabs>
 
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
@@ -181,16 +387,16 @@ export default function Login() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <Button variant="outline" className="h-11">
-                  <Chrome className="w-4 h-4 mr-2" />
-                  Google
-                </Button>
-                <Button variant="outline" className="h-11">
-                  <Github className="w-4 h-4 mr-2" />
-                  GitHub
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                className="w-full h-11"
+                onClick={handleGoogleLogin}
+                disabled={isLoading || !isTermsAccepted}
+              >
+                <Chrome className="w-4 h-4 mr-2" />
+                Continue with Google
+              </Button>
+              {(!isTermsAccepted) && <p className="text-xs text-center text-red-500 mt-1">Accept terms to enable login</p>}
 
               <p className="text-center text-sm text-muted-foreground">
                 {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
@@ -205,12 +411,7 @@ export default function Login() {
             </CardContent>
           </Card>
 
-          <p className="mt-6 text-center text-xs text-muted-foreground">
-            By continuing, you agree to our{" "}
-            <a href="#" className="text-primary hover:underline">Terms of Service</a>
-            {" "}and{" "}
-            <a href="#" className="text-primary hover:underline">Privacy Policy</a>
-          </p>
+
         </div>
       </div>
     </div>

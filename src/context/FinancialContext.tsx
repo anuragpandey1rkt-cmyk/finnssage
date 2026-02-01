@@ -1,11 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-
-interface Transaction {
-  date: string;
-  description: string;
-  amount: number;
-  category: string;
-}
+import { supabase, Transaction, Profile } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
 
 interface FinancialData {
   annualIncome: number;
@@ -20,11 +15,14 @@ interface FinancialData {
 
 interface FinancialContextType {
   financialData: FinancialData;
-  setAnnualIncome: (income: number) => void;
-  setTransactions: (transactions: Transaction[]) => void;
-  completeOnboarding: () => void;
-  resetOnboarding: () => void;
+  transactions: Transaction[];
   isLoading: boolean;
+  setAnnualIncome: (income: number) => Promise<void>;
+  addTransaction: (transaction: Omit<Transaction, "id" | "user_id" | "created_at">) => Promise<void>;
+  addTransactions: (transactions: Omit<Transaction, "id" | "user_id" | "created_at">[]) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
+  refreshTransactions: () => Promise<void>;
+  completeOnboarding: () => Promise<void>;
 }
 
 const defaultFinancialData: FinancialData = {
@@ -41,108 +39,200 @@ const defaultFinancialData: FinancialData = {
 const FinancialContext = createContext<FinancialContextType | undefined>(undefined);
 
 export function FinancialProvider({ children }: { children: ReactNode }) {
+  const { user, profile, updateProfile } = useAuth();
   const [financialData, setFinancialData] = useState<FinancialData>(defaultFinancialData);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load data from localStorage on mount
-  useEffect(() => {
-    const storedIncome = localStorage.getItem("userIncome");
-    const storedOnboarding = localStorage.getItem("onboardingComplete");
-    const storedTransactions = localStorage.getItem("userTransactions");
+  // Calculate financial metrics from transactions
+  const calculateMetrics = (txns: Transaction[], income: number) => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
 
-    if (storedIncome && storedOnboarding === "true") {
-      const annualIncome = parseInt(storedIncome, 10);
-      const monthlyIncome = Math.round(annualIncome / 12);
-      // Assume ~65% expenses for realistic data
-      const monthlyExpenses = Math.round(monthlyIncome * 0.65);
-      const monthlySavings = monthlyIncome - monthlyExpenses;
-      const savingsRate = Math.round((monthlySavings / monthlyIncome) * 100);
+    // Filter transactions for current month
+    const monthlyTxns = txns.filter((t) => {
+      const txDate = new Date(t.date);
+      return txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear;
+    });
 
-      let transactions: Transaction[] = [];
-      if (storedTransactions) {
-        try {
-          transactions = JSON.parse(storedTransactions);
-        } catch {
-          transactions = [];
-        }
-      }
+    // Calculate expenses for current month
+    const monthlyExpenses = monthlyTxns
+      .filter((t) => t.type === "expense")
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
-      setFinancialData({
-        annualIncome,
-        monthlyIncome,
-        monthlyExpenses,
-        monthlySavings,
-        netWorth: Math.round(annualIncome * 2.5),
-        savingsRate,
-        transactions,
-        hasCompletedOnboarding: true,
-      });
-    }
+    // Calculate income for current month (from transactions + set income)
+    const transactionIncome = monthlyTxns
+      .filter((t) => t.type === "income")
+      .reduce((sum, t) => sum + t.amount, 0);
 
-    setIsLoading(false);
-  }, []);
-
-  const setAnnualIncome = (income: number) => {
-    const monthlyIncome = Math.round(income / 12);
-    const monthlyExpenses = Math.round(monthlyIncome * 0.65);
+    const monthlyIncome = Math.round(income / 12) + transactionIncome;
     const monthlySavings = monthlyIncome - monthlyExpenses;
-    const savingsRate = Math.round((monthlySavings / monthlyIncome) * 100);
+    const savingsRate = monthlyIncome > 0 ? Math.round((monthlySavings / monthlyIncome) * 100) : 0;
 
-    localStorage.setItem("userIncome", income.toString());
-
-    setFinancialData((prev) => ({
-      ...prev,
-      annualIncome: income,
+    return {
       monthlyIncome,
       monthlyExpenses,
       monthlySavings,
-      netWorth: Math.round(income * 2.5),
       savingsRate,
-    }));
+      netWorth: Math.round(income * 2.5), // Estimate based on income
+    };
   };
 
-  const setTransactions = (transactions: Transaction[]) => {
-    localStorage.setItem("userTransactions", JSON.stringify(transactions));
-    
-    // Calculate expenses from transactions
-    const totalExpenses = transactions
-      .filter((t) => t.amount < 0)
-      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-    
-    const avgMonthlyExpenses = Math.round(totalExpenses / 12);
+  // Fetch transactions from Supabase
+  const fetchTransactions = async () => {
+    if (!user) return [];
 
+    const { data, error } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("date", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching transactions:", error);
+      return [];
+    }
+
+    return data as Transaction[];
+  };
+
+  // Refresh transactions and recalculate metrics
+  const refreshTransactions = async () => {
+    if (!user) return;
+
+    const txns = await fetchTransactions();
+    setTransactions(txns);
+
+    const income = profile?.annual_income || 0;
+    const metrics = calculateMetrics(txns, income);
+
+    setFinancialData({
+      annualIncome: income,
+      ...metrics,
+      transactions: txns,
+      hasCompletedOnboarding: profile?.onboarding_completed || false,
+    });
+  };
+
+  // Load data when user/profile changes
+  useEffect(() => {
+    const loadData = async () => {
+      if (user) {
+        // User exists, try to load data
+        if (profile) {
+          await refreshTransactions();
+        }
+        // Always set loading to false when user is authenticated
+        setIsLoading(false);
+      } else {
+        // No user, reset to defaults
+        setFinancialData(defaultFinancialData);
+        setTransactions([]);
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [user, profile]);
+
+  // Set annual income
+  const setAnnualIncome = async (income: number) => {
+    if (!user) return;
+
+    await updateProfile({
+      annual_income: income,
+      monthly_income: Math.round(income / 12),
+    });
+
+    const metrics = calculateMetrics(transactions, income);
     setFinancialData((prev) => ({
       ...prev,
-      transactions,
-      monthlyExpenses: avgMonthlyExpenses || prev.monthlyExpenses,
-      monthlySavings: prev.monthlyIncome - (avgMonthlyExpenses || prev.monthlyExpenses),
+      annualIncome: income,
+      ...metrics,
     }));
   };
 
-  const completeOnboarding = () => {
-    localStorage.setItem("onboardingComplete", "true");
+  // Add a single transaction
+  const addTransaction = async (transaction: Omit<Transaction, "id" | "user_id" | "created_at">) => {
+    if (!user) return;
+
+    const { error } = await supabase.from("transactions").insert({
+      ...transaction,
+      user_id: user.id,
+    });
+
+    if (error) {
+      console.error("Error adding transaction:", error);
+      throw error;
+    }
+
+    await refreshTransactions();
+  };
+
+  // Add multiple transactions (bulk import)
+  const addTransactions = async (txns: Omit<Transaction, "id" | "user_id" | "created_at">[]) => {
+    if (!user || txns.length === 0) return;
+
+    const transactionsWithUserId = txns.map((t) => ({
+      ...t,
+      user_id: user.id,
+    }));
+
+    const { error } = await supabase.from("transactions").insert(transactionsWithUserId);
+
+    if (error) {
+      console.error("Error adding transactions:", error);
+      throw error;
+    }
+
+    await refreshTransactions();
+  };
+
+  // Delete a transaction
+  const deleteTransaction = async (id: string) => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("transactions")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("Error deleting transaction:", error);
+      throw error;
+    }
+
+    await refreshTransactions();
+  };
+
+  // Complete onboarding
+  const completeOnboarding = async () => {
+    if (!user) return;
+
+    await updateProfile({
+      onboarding_completed: true,
+    });
+
     setFinancialData((prev) => ({
       ...prev,
       hasCompletedOnboarding: true,
     }));
   };
 
-  const resetOnboarding = () => {
-    localStorage.removeItem("userIncome");
-    localStorage.removeItem("onboardingComplete");
-    localStorage.removeItem("userTransactions");
-    setFinancialData(defaultFinancialData);
-  };
-
   return (
     <FinancialContext.Provider
       value={{
         financialData,
-        setAnnualIncome,
-        setTransactions,
-        completeOnboarding,
-        resetOnboarding,
+        transactions,
         isLoading,
+        setAnnualIncome,
+        addTransaction,
+        addTransactions,
+        deleteTransaction,
+        refreshTransactions,
+        completeOnboarding,
       }}
     >
       {children}

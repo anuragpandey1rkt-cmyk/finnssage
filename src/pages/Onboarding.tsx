@@ -9,6 +9,7 @@ import {
     Sparkles,
     CheckCircle2,
     AlertCircle,
+    Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,53 +18,65 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useFinancial } from "@/context/FinancialContext";
+import { useAuth } from "@/context/AuthContext";
+import { supabase, Transaction } from "@/lib/supabase";
 
 interface ParsedTransaction {
     date: string;
     description: string;
     amount: number;
     category: string;
+    type: "income" | "expense";
 }
 
 export default function Onboarding() {
     const navigate = useNavigate();
     const { toast } = useToast();
-    const { setAnnualIncome, setTransactions, completeOnboarding, financialData } = useFinancial();
+    const { user, profile } = useAuth();
+    const { setAnnualIncome, addTransactions, completeOnboarding, financialData } = useFinancial();
     const [income, setIncome] = useState("");
     const [incomeType, setIncomeType] = useState<"annual" | "monthly">("annual");
     const [isLoading, setIsLoading] = useState(false);
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     const [parseError, setParseError] = useState<string | null>(null);
     const [parsedData, setParsedData] = useState<ParsedTransaction[] | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // If already onboarded, redirect to dashboard
-    if (financialData.hasCompletedOnboarding && !isLoading) {
+    if (profile?.onboarding_completed && !isLoading) {
         navigate("/");
         return null;
     }
 
-    const handleIncomeSubmit = (e: React.FormEvent) => {
+    const handleIncomeSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!income) return;
+        if (!income || !user) return;
 
         setIsLoading(true);
 
-        const incomeValue = parseInt(income, 10);
-        const annualIncome = incomeType === "monthly" ? incomeValue * 12 : incomeValue;
+        try {
+            const incomeValue = parseInt(income, 10);
+            const annualIncome = incomeType === "monthly" ? incomeValue * 12 : incomeValue;
 
-        // Simulated AI processing delay
-        setTimeout(() => {
-            setAnnualIncome(annualIncome);
-            completeOnboarding();
+            await setAnnualIncome(annualIncome);
+            await completeOnboarding();
 
             toast({
                 title: "Profile personalized!",
-                description: `Your dashboard has been customized based on your ${incomeType === "monthly" ? "monthly" : "annual"} income of $${incomeValue.toLocaleString()}.`,
+                description: `Your dashboard has been customized based on your ${incomeType === "monthly" ? "monthly" : "annual"} income.`,
             });
 
             navigate("/");
-        }, 1500);
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: "Failed to save your data. Please try again.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const parseCSV = (content: string): ParsedTransaction[] => {
@@ -77,7 +90,6 @@ export default function Onboarding() {
         const startIndex = hasHeaders ? 1 : 0;
 
         const transactions: ParsedTransaction[] = [];
-        const categories = ["Groceries", "Dining", "Shopping", "Transport", "Utilities", "Entertainment", "Healthcare", "Income"];
 
         for (let i = startIndex; i < lines.length; i++) {
             const line = lines[i].trim();
@@ -109,11 +121,14 @@ export default function Onboarding() {
                     category = "Income";
                 }
 
+                const type: "income" | "expense" = amount > 0 ? "income" : "expense";
+
                 transactions.push({
                     date: dateStr,
                     description,
-                    amount,
+                    amount: Math.abs(amount),
                     category,
+                    type,
                 });
             }
         }
@@ -143,7 +158,7 @@ export default function Onboarding() {
                     setParsedData(transactions);
 
                     // Calculate estimated annual income from positive transactions
-                    const incomeTransactions = transactions.filter((t) => t.amount > 0);
+                    const incomeTransactions = transactions.filter((t) => t.type === "income");
                     const totalIncome = incomeTransactions.reduce((sum, t) => sum + t.amount, 0);
                     // Estimate annual based on data range
                     const estimatedAnnual = totalIncome * 4; // Assuming quarterly data
@@ -158,16 +173,53 @@ export default function Onboarding() {
             };
             reader.readAsText(file);
         } else if (file.name.endsWith(".pdf")) {
-            // For PDF files, we'll simulate extraction
             toast({
                 title: "PDF detected",
-                description: "PDF parsing is simulated. In production, this would use a PDF parsing library.",
+                description: "PDF parsing requires additional processing. Please use CSV format for best results.",
             });
         }
     };
 
-    const handleFileUpload = () => {
-        if (!uploadedFile && !parsedData) {
+    const uploadFileToStorage = async (file: File): Promise<string | null> => {
+        if (!user) return null;
+
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+        const { data, error } = await supabase.storage
+            .from("statements")
+            .upload(fileName, file);
+
+        if (error) {
+            console.error("Error uploading file:", error);
+            return null;
+        }
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+            .from("statements")
+            .getPublicUrl(fileName);
+
+        return urlData.publicUrl;
+    };
+
+    const saveStatementRecord = async (file: File, fileUrl: string, transactionsCount: number) => {
+        if (!user) return;
+
+        const fileType = file.name.endsWith(".pdf") ? "pdf" : "csv";
+
+        await supabase.from("bank_statements").insert({
+            user_id: user.id,
+            file_name: file.name,
+            file_url: fileUrl,
+            file_type: fileType,
+            processed: true,
+            transactions_extracted: transactionsCount,
+        });
+    };
+
+    const handleFileUpload = async () => {
+        if (!uploadedFile || !user) {
             toast({
                 title: "No file selected",
                 description: "Please select a CSV or PDF file to upload.",
@@ -177,105 +229,112 @@ export default function Onboarding() {
         }
 
         setIsLoading(true);
+        setIsUploading(true);
 
-        setTimeout(() => {
+        try {
+            // Upload file to Supabase Storage
+            const fileUrl = await uploadFileToStorage(uploadedFile);
+
             if (parsedData && parsedData.length > 0) {
-                // Calculate income from parsed transactions
-                const incomeTransactions = parsedData.filter((t) => t.amount > 0);
+                // Save transactions to database
+                const transactionsToSave = parsedData.map((t) => ({
+                    date: t.date,
+                    description: t.description,
+                    amount: t.type === "expense" ? -t.amount : t.amount,
+                    category: t.category,
+                    type: t.type,
+                    source: "csv_upload" as const,
+                }));
+
+                await addTransactions(transactionsToSave);
+
+                // Calculate and set income
+                const incomeTransactions = parsedData.filter((t) => t.type === "income");
                 const totalIncome = incomeTransactions.reduce((sum, t) => sum + t.amount, 0);
                 const estimatedAnnual = Math.round(totalIncome * 4);
 
-                setAnnualIncome(estimatedAnnual || 85000);
-                setTransactions(parsedData);
+                await setAnnualIncome(estimatedAnnual || 85000);
+
+                // Save statement record
+                if (fileUrl) {
+                    await saveStatementRecord(uploadedFile, fileUrl, parsedData.length);
+                }
             } else {
-                // Mock extracted income from file
-                setAnnualIncome(85000);
+                // No parsed data, just set a default income
+                await setAnnualIncome(85000);
             }
 
-            completeOnboarding();
+            await completeOnboarding();
 
             toast({
                 title: "Statement analyzed",
-                description: "We've extracted your financial data successfully.",
+                description: `We've extracted ${parsedData?.length || 0} transactions and saved them to your account.`,
             });
 
             navigate("/");
-        }, 2000);
+        } catch (error) {
+            console.error("Upload error:", error);
+            toast({
+                title: "Upload failed",
+                description: "Failed to process your statement. Please try again.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsLoading(false);
+            setIsUploading(false);
+        }
     };
 
     return (
-        <div className="min-h-screen bg-background flex items-center justify-center p-4">
-            <div className="w-full max-w-4xl grid md:grid-cols-2 gap-8 items-center">
+        <div className="min-h-screen bg-gradient-to-br from-sidebar via-background to-sidebar flex items-center justify-center p-4">
+            {/* Background decoration */}
+            <div className="fixed inset-0 opacity-30 pointer-events-none">
+                <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl" />
+                <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-info/20 rounded-full blur-3xl" />
+            </div>
 
-                {/* Left Side - Info */}
-                <div className="space-y-6">
-                    <div className="flex items-center gap-2">
-                        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-info">
-                            <Sparkles className="w-6 h-6 text-primary-foreground" />
+            <div className="w-full max-w-2xl relative z-10">
+                {/* Header */}
+                <div className="text-center mb-8">
+                    <div className="flex items-center justify-center gap-3 mb-4">
+                        <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-info">
+                            <Sparkles className="w-7 h-7 text-primary-foreground" />
                         </div>
-                        <span className="text-xl font-bold">FinSage AI</span>
                     </div>
-
-                    <h1 className="text-4xl font-bold leading-tight">
-                        Let's personalize your <span className="text-gradient">financial</span> experience
+                    <h1 className="text-3xl font-bold mb-2">
+                        Welcome to <span className="text-gradient">FinSage AI</span>
                     </h1>
-
-                    <p className="text-lg text-muted-foreground">
-                        To provide accurate AI insights, personalized dashboards, and smart recommendations, we need a starting point.
+                    <p className="text-muted-foreground">
+                        {profile?.full_name ? `Hi ${profile.full_name.split(" ")[0]}! ` : ""}
+                        Let's personalize your financial dashboard
                     </p>
-
-                    <div className="space-y-4 pt-4">
-                        <div className="flex items-start gap-3">
-                            <ShieldCheck className="w-6 h-6 text-primary mt-1" />
-                            <div>
-                                <h3 className="font-medium">Private & Secure</h3>
-                                <p className="text-sm text-muted-foreground">Your data is processed locally and never shared.</p>
-                            </div>
-                        </div>
-                        <div className="flex items-start gap-3">
-                            <Sparkles className="w-6 h-6 text-info mt-1" />
-                            <div>
-                                <h3 className="font-medium">AI-Powered Analysis</h3>
-                                <p className="text-sm text-muted-foreground">Get instant projections, budget recommendations, and investment insights.</p>
-                            </div>
-                        </div>
-                        <div className="flex items-start gap-3">
-                            <CheckCircle2 className="w-6 h-6 text-success mt-1" />
-                            <div>
-                                <h3 className="font-medium">Personalized Dashboard</h3>
-                                <p className="text-sm text-muted-foreground">All charts, metrics, and recommendations tailored to your finances.</p>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
-                {/* Right Side - Input Card */}
-                <Card className="border-border/50 shadow-2xl relative overflow-hidden">
-                    {isLoading && (
-                        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
-                            <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mb-4" />
-                            <p className="font-medium animate-pulse">Analyzing your financial profile...</p>
-                            <p className="text-sm text-muted-foreground mt-2">Setting up AI insights...</p>
-                        </div>
-                    )}
-
+                {/* Main Card */}
+                <Card className="border-border/50 shadow-2xl">
                     <CardHeader>
-                        <CardTitle>Welcome to FinSage!</CardTitle>
+                        <CardTitle className="text-xl">Get Started</CardTitle>
                         <CardDescription>
-                            Choose how you want to start your journey
+                            Choose how you'd like to set up your personalized dashboard
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <Tabs defaultValue="manual" className="space-y-6">
-                            <TabsList className="grid w-full grid-cols-2">
-                                <TabsTrigger value="manual">Manual Input</TabsTrigger>
-                                <TabsTrigger value="upload">Upload Statement</TabsTrigger>
+                        <Tabs defaultValue="income" className="w-full">
+                            <TabsList className="grid w-full grid-cols-2 mb-6">
+                                <TabsTrigger value="income" className="gap-2">
+                                    <DollarSign className="w-4 h-4" />
+                                    Enter Income
+                                </TabsTrigger>
+                                <TabsTrigger value="upload" className="gap-2">
+                                    <Upload className="w-4 h-4" />
+                                    Upload Statement
+                                </TabsTrigger>
                             </TabsList>
 
-                            <TabsContent value="manual" className="space-y-4">
-                                <form onSubmit={handleIncomeSubmit} className="space-y-4">
-                                    <div className="space-y-2">
-                                        <Label>Income Type</Label>
+                            {/* Income Tab */}
+                            <TabsContent value="income">
+                                <form onSubmit={handleIncomeSubmit} className="space-y-6">
+                                    <div className="space-y-4">
                                         <div className="flex gap-2">
                                             <Button
                                                 type="button"
@@ -294,117 +353,150 @@ export default function Onboarding() {
                                                 Monthly
                                             </Button>
                                         </div>
-                                    </div>
 
-                                    <div className="space-y-2">
-                                        <Label htmlFor="income">
-                                            {incomeType === "annual" ? "Annual Income" : "Monthly Income"} (Approx.)
-                                        </Label>
-                                        <div className="relative">
-                                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                            <Input
-                                                id="income"
-                                                type="number"
-                                                placeholder={incomeType === "annual" ? "e.g. 75000" : "e.g. 6500"}
-                                                className="pl-10"
-                                                value={income}
-                                                onChange={(e) => setIncome(e.target.value)}
-                                                required
-                                            />
+                                        <div className="space-y-2">
+                                            <Label htmlFor="income">
+                                                {incomeType === "annual" ? "Annual" : "Monthly"} Income (USD)
+                                            </Label>
+                                            <div className="relative">
+                                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                                <Input
+                                                    id="income"
+                                                    type="number"
+                                                    placeholder={incomeType === "annual" ? "100000" : "8333"}
+                                                    value={income}
+                                                    onChange={(e) => setIncome(e.target.value)}
+                                                    className="pl-9"
+                                                    required
+                                                />
+                                            </div>
+                                            <p className="text-xs text-muted-foreground">
+                                                This helps us provide personalized financial recommendations
+                                            </p>
                                         </div>
-                                        <p className="text-xs text-muted-foreground">
-                                            We use this to calculate cash flow projections and personalize your dashboard.
-                                        </p>
                                     </div>
 
-                                    <Button type="submit" className="w-full">
-                                        Continue to Dashboard
-                                        <ArrowRight className="w-4 h-4 ml-2" />
+                                    <Button type="submit" className="w-full" size="lg" disabled={isLoading || !income}>
+                                        {isLoading ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <>
+                                                Continue to Dashboard
+                                                <ArrowRight className="w-4 h-4" />
+                                            </>
+                                        )}
                                     </Button>
                                 </form>
                             </TabsContent>
 
-                            <TabsContent value="upload" className="space-y-4">
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept=".csv,.pdf"
-                                    onChange={handleFileChange}
-                                    className="hidden"
-                                />
+                            {/* Upload Tab */}
+                            <TabsContent value="upload">
+                                <div className="space-y-6">
+                                    <div
+                                        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${uploadedFile
+                                                ? "border-primary bg-primary/5"
+                                                : "border-border hover:border-primary/50"
+                                            }`}
+                                        onClick={() => fileInputRef.current?.click()}
+                                    >
+                                        <input
+                                            ref={fileInputRef}
+                                            type="file"
+                                            accept=".csv,.pdf"
+                                            className="hidden"
+                                            onChange={handleFileChange}
+                                        />
 
-                                <div
-                                    className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center transition-colors cursor-pointer group ${uploadedFile
-                                            ? "border-primary bg-primary/5"
-                                            : "border-border hover:bg-secondary/30"
-                                        }`}
-                                    onClick={() => fileInputRef.current?.click()}
-                                >
-                                    <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 transition-transform ${uploadedFile ? "bg-primary/20" : "bg-secondary group-hover:scale-110"
-                                        }`}>
                                         {uploadedFile ? (
-                                            <CheckCircle2 className="w-6 h-6 text-primary" />
+                                            <div className="space-y-2">
+                                                <CheckCircle2 className="w-12 h-12 mx-auto text-primary" />
+                                                <p className="font-medium">{uploadedFile.name}</p>
+                                                <p className="text-sm text-muted-foreground">
+                                                    {parsedData
+                                                        ? `${parsedData.length} transactions found`
+                                                        : "Click to select a different file"}
+                                                </p>
+                                            </div>
                                         ) : (
-                                            <Upload className="w-6 h-6 text-muted-foreground" />
+                                            <div className="space-y-2">
+                                                <FileText className="w-12 h-12 mx-auto text-muted-foreground" />
+                                                <p className="font-medium">Drop your bank statement here</p>
+                                                <p className="text-sm text-muted-foreground">
+                                                    Supports CSV and PDF files
+                                                </p>
+                                            </div>
                                         )}
                                     </div>
 
-                                    {uploadedFile ? (
-                                        <>
-                                            <h3 className="font-medium mb-1 text-primary">{uploadedFile.name}</h3>
-                                            <p className="text-sm text-muted-foreground">
-                                                {parsedData ? `${parsedData.length} transactions found` : "Click to change file"}
-                                            </p>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <h3 className="font-medium mb-1">Upload Bank Statement</h3>
-                                            <p className="text-sm text-muted-foreground mb-4">
-                                                CSV or PDF files supported
-                                            </p>
-                                            <Button variant="outline" size="sm">Select File</Button>
-                                        </>
+                                    {parseError && (
+                                        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive">
+                                            <AlertCircle className="w-4 h-4" />
+                                            <p className="text-sm">{parseError}</p>
+                                        </div>
                                     )}
-                                </div>
 
-                                {parseError && (
-                                    <div className="flex gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-                                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                                        <p>{parseError}</p>
-                                    </div>
-                                )}
-
-                                {parsedData && parsedData.length > 0 && (
-                                    <div className="bg-secondary/30 rounded-lg p-3 space-y-2">
-                                        <p className="text-sm font-medium">Preview (first 3 transactions):</p>
-                                        {parsedData.slice(0, 3).map((t, i) => (
-                                            <div key={i} className="flex justify-between text-xs text-muted-foreground">
-                                                <span>{t.description.substring(0, 30)}...</span>
-                                                <span className={t.amount >= 0 ? "text-success" : "text-destructive"}>
-                                                    {t.amount >= 0 ? "+" : ""}{t.amount.toFixed(2)}
-                                                </span>
+                                    {parsedData && (
+                                        <div className="p-4 rounded-lg bg-success/10 border border-success/20">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <CheckCircle2 className="w-5 h-5 text-success" />
+                                                <p className="font-medium text-success">File parsed successfully</p>
                                             </div>
-                                        ))}
+                                            <div className="grid grid-cols-2 gap-4 mt-3">
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">Transactions</p>
+                                                    <p className="font-semibold">{parsedData.length}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">Total Income</p>
+                                                    <p className="font-semibold text-success">
+                                                        ${parsedData.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0).toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="flex items-start gap-3 p-4 rounded-lg bg-secondary/50">
+                                        <ShieldCheck className="w-5 h-5 text-primary mt-0.5" />
+                                        <div>
+                                            <p className="font-medium text-sm">Your data is secure</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                We use bank-level encryption to protect your financial information. Your data is stored securely and never shared.
+                                            </p>
+                                        </div>
                                     </div>
-                                )}
 
-                                <Button
-                                    className="w-full"
-                                    onClick={handleFileUpload}
-                                    disabled={!uploadedFile}
-                                >
-                                    Analyze Statement
-                                    <ArrowRight className="w-4 h-4 ml-2" />
-                                </Button>
-
-                                <div className="bg-secondary/30 rounded-lg p-3 flex gap-3 text-xs text-muted-foreground">
-                                    <FileText className="w-4 h-4 shrink-0" />
-                                    <p>We'll automatically extract income and recurring expenses to set up your personalized budget and AI insights.</p>
+                                    <Button
+                                        onClick={handleFileUpload}
+                                        className="w-full"
+                                        size="lg"
+                                        disabled={isLoading || !uploadedFile}
+                                    >
+                                        {isLoading ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                                {isUploading ? "Uploading..." : "Processing..."}
+                                            </>
+                                        ) : (
+                                            <>
+                                                Analyze & Continue
+                                                <ArrowRight className="w-4 h-4" />
+                                            </>
+                                        )}
+                                    </Button>
                                 </div>
                             </TabsContent>
                         </Tabs>
                     </CardContent>
                 </Card>
+
+                {/* Footer */}
+                <p className="text-center text-xs text-muted-foreground mt-6">
+                    By continuing, you agree to our{" "}
+                    <a href="/privacy" className="text-primary hover:underline">
+                        Privacy Policy
+                    </a>
+                </p>
             </div>
         </div>
     );

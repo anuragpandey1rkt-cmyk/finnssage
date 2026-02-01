@@ -1,6 +1,7 @@
 import { Bell, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/context/AuthContext";
 
 interface HeaderProps {
   title: string;
@@ -8,10 +9,17 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle }: HeaderProps) {
+  const { profile } = useAuth();
+
+  // Get first name for greeting
+  const firstName = profile?.full_name?.split(" ")[0] || profile?.email?.split("@")[0] || "there";
+
   return (
     <header className="flex items-center justify-between h-16 px-6 border-b border-border bg-card/50 backdrop-blur-sm">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">{title}</h1>
+        <h1 className="text-xl font-semibold text-foreground">
+          {title === "Dashboard" ? `Welcome back, ${firstName}!` : title}
+        </h1>
         {subtitle && (
           <p className="text-sm text-muted-foreground">{subtitle}</p>
         )}
@@ -38,7 +46,7 @@ export function Header({ title, subtitle }: HeaderProps) {
 
         {/* Account status */}
         <Badge variant="success" className="hidden sm:flex">
-          All Systems Operational
+          {profile ? "Connected" : "All Systems Operational"}
         </Badge>
       </div>
     </header>

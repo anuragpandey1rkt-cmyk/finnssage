@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import {
   LayoutDashboard,
   CreditCard,
@@ -102,6 +103,28 @@ function NavSection({ title, items, collapsed }: { title?: string; items: Sideba
 
 export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const { profile, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  // Get user initials from name or email
+  const getUserInitials = () => {
+    if (profile?.full_name) {
+      const parts = profile.full_name.split(" ");
+      if (parts.length >= 2) {
+        return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+      }
+      return parts[0].substring(0, 2).toUpperCase();
+    }
+    if (profile?.email) {
+      return profile.email.substring(0, 2).toUpperCase();
+    }
+    return "U";
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/login");
+  };
 
   return (
     <aside
@@ -181,20 +204,26 @@ export function AppSidebar() {
         )}>
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-primary to-info text-xs font-bold text-primary-foreground">
-              JD
+              {getUserInitials()}
             </div>
             {!collapsed && (
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-sidebar-accent-foreground truncate">
-                  John Doe
+                  {profile?.full_name || profile?.email?.split("@")[0] || "User"}
                 </p>
                 <p className="text-xs text-muted-foreground truncate">
-                  Premium Plan
+                  {profile?.email || "Premium Plan"}
                 </p>
               </div>
             )}
             {!collapsed && (
-              <Button variant="ghost" size="icon" className="text-sidebar-foreground hover:bg-sidebar-accent">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-sidebar-foreground hover:bg-sidebar-accent"
+                onClick={handleLogout}
+                title="Logout"
+              >
                 <LogOut className="w-4 h-4" />
               </Button>
             )}

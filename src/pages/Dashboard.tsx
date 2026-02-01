@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import {
   TrendingUp,
   Wallet,
@@ -60,54 +60,59 @@ const insights = [
 
 export default function Dashboard() {
   const { format, symbol } = useCurrency();
-  const [financials, setFinancials] = useState({
-    income: 8400,
-    expenses: 5890,
-    savings: 2510,
-    netWorth: 287450,
-  });
+  const { financialData, transactions, isLoading } = useFinancial();
 
-  const [chartData, setChartData] = useState<any[]>([]);
+  // Use real data from context
+  const financials = {
+    income: financialData.monthlyIncome || 8400,
+    expenses: financialData.monthlyExpenses || 5890,
+    savings: financialData.monthlySavings || 2510,
+    netWorth: financialData.netWorth || 287450,
+  };
 
-  useEffect(() => {
-    // Load personalized data from onboarding
-    const storedIncome = localStorage.getItem("userIncome");
+  // Generate chart data from real transactions or use calculated data
+  const chartData = useMemo(() => {
+    if (transactions.length > 0) {
+      // Group transactions by month
+      const monthlyData: { [key: string]: { income: number; expenses: number } } = {};
 
-    if (storedIncome) {
-      const annualIncome = parseInt(storedIncome, 10);
-      const monthlyIncome = Math.round(annualIncome / 12);
-      // Assume ~70% expenses for realistic data
-      const monthlyExpenses = Math.round(monthlyIncome * 0.65);
-      const monthlySavings = monthlyIncome - monthlyExpenses;
+      transactions.forEach((t) => {
+        const date = new Date(t.date);
+        const monthKey = date.toLocaleDateString("en-US", { month: "short" });
 
-      setFinancials({
-        income: monthlyIncome,
-        expenses: monthlyExpenses,
-        savings: monthlySavings,
-        netWorth: Math.round(annualIncome * 2.5), // Mock net worth based on income
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = { income: 0, expenses: 0 };
+        }
+
+        if (t.type === "income") {
+          monthlyData[monthKey].income += Math.abs(t.amount);
+        } else {
+          monthlyData[monthKey].expenses += Math.abs(t.amount);
+        }
       });
 
-      // Generate personalized chart data based on income
-      const data = [
-        { name: "Jan", expenses: monthlyExpenses * 0.9, income: monthlyIncome },
-        { name: "Feb", expenses: monthlyExpenses * 1.1, income: monthlyIncome },
-        { name: "Mar", expenses: monthlyExpenses * 0.95, income: monthlyIncome },
-        { name: "Apr", expenses: monthlyExpenses * 0.85, income: monthlyIncome + 500 }, // Bonus
-        { name: "May", expenses: monthlyExpenses * 1.05, income: monthlyIncome },
-        { name: "Jun", expenses: monthlyExpenses, income: monthlyIncome },
-      ];
-      setChartData(data);
-    } else {
-      // Fallback data
-      setChartData([
-        { name: "Jan", expenses: 5000, income: 8400 },
-        { name: "Feb", expenses: 6200, income: 8400 },
-        { name: "Mar", expenses: 5800, income: 8400 },
-        { name: "Apr", expenses: 4900, income: 8900 },
-        { name: "May", expenses: 5890, income: 8400 },
-      ]);
+      return Object.entries(monthlyData)
+        .slice(-6)
+        .map(([name, data]) => ({
+          name,
+          income: data.income,
+          expenses: data.expenses,
+        }));
     }
-  }, []);
+
+    // Fallback to calculated data based on income
+    const monthlyIncome = financials.income;
+    const monthlyExpenses = financials.expenses;
+
+    return [
+      { name: "Jan", expenses: monthlyExpenses * 0.9, income: monthlyIncome },
+      { name: "Feb", expenses: monthlyExpenses * 1.1, income: monthlyIncome },
+      { name: "Mar", expenses: monthlyExpenses * 0.95, income: monthlyIncome },
+      { name: "Apr", expenses: monthlyExpenses * 0.85, income: monthlyIncome },
+      { name: "May", expenses: monthlyExpenses * 1.05, income: monthlyIncome },
+      { name: "Jun", expenses: monthlyExpenses, income: monthlyIncome },
+    ];
+  }, [transactions, financials.income, financials.expenses]);
 
   return (
     <DashboardLayout title="Dashboard" subtitle="Your financial overview">
