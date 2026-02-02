@@ -44,8 +44,8 @@ import {
     ResponsiveContainer,
     Line,
 } from "recharts";
-import finnhubService from "@/services/finnhubService";
-import personalizedInvestmentService, { UserFinancialProfile } from "@/services/personalizedInvestmentService";
+import finnhubService from "../services/finnhubService";
+import personalizedInvestmentService, { UserFinancialProfile } from "../services/personalizedInvestmentService";
 
 const stockData: Record<string, {
     name: string;
