@@ -2,6 +2,26 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { User, Session, AuthError } from "@supabase/supabase-js";
 import { supabase, Profile } from "@/lib/supabase";
 
+// Mock user for testing (bypasses Supabase rate limits)
+const MOCK_USER_ID = "00000000-0000-0000-0000-000000000001";
+const createMockUser = (email: string): User => ({
+    id: MOCK_USER_ID,
+    email,
+    app_metadata: {},
+    user_metadata: { full_name: "Test Demo User" },
+    aud: "authenticated",
+    created_at: new Date().toISOString(),
+} as User);
+
+const createMockSession = (user: User): Session => ({
+    access_token: "mock-access-token",
+    refresh_token: "mock-refresh-token",
+    expires_in: 3600,
+    expires_at: Date.now() + 3600000,
+    token_type: "bearer",
+    user,
+} as Session);
+
 interface AuthContextType {
     user: User | null;
     profile: Profile | null;
@@ -77,6 +97,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Initialize auth state
     const initializeAuth = async () => {
         try {
+            // Check for mock session first (bypasses Supabase)
+            const mockSessionData = localStorage.getItem('mock_auth_session');
+            if (mockSessionData) {
+                try {
+                    const { user, session, profile } = JSON.parse(mockSessionData);
+                    console.log('🔑 Restored mock session from localStorage');
+                    setUser(user);
+                    setSession(session);
+                    setProfile(profile);
+                    setIsLoading(false);
+                    return;
+                } catch (e) {
+                    console.error('Failed to parse mock session, clearing:', e);
+                    localStorage.removeItem('mock_auth_session');
+                }
+            }
+
             // Create a timeout promise that resolves after 3 seconds
             const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 3000));
 
@@ -165,6 +202,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const signIn = async (email: string, password: string) => {
         setIsLoading(true);
+
+        // Local mock authentication (bypasses Supabase rate limits completely)
+        if (email === 'test@demo.com' && password === 'demo123') {
+            console.log('🔑 Using LOCAL mock authentication (no Supabase)');
+
+            // Create mock user and session
+            const mockUser = createMockUser('test@demo.com');
+            const mockSession = createMockSession(mockUser);
+
+            // Create mock profile
+            const mockProfile: Profile = {
+                id: MOCK_USER_ID,
+                email: 'test@demo.com',
+                full_name: 'Test Demo User',
+                annual_income: null,
+                monthly_income: null,
+                currency_preference: 'USD',
+                onboarding_completed: false,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            };
+
+            // Store in state
+            setUser(mockUser);
+            setSession(mockSession);
+            setProfile(mockProfile);
+
+            // Store in localStorage for persistence
+            localStorage.setItem('mock_auth_session', JSON.stringify({
+                user: mockUser,
+                session: mockSession,
+                profile: mockProfile,
+            }));
+
+            console.log('✅ Local mock authentication successful!');
+            setIsLoading(false);
+            return { error: null };
+        }
+
+        // Normal authentication flow
         const { error } = await supabase.auth.signInWithPassword({
             email,
             password,
@@ -244,6 +321,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const signOut = async () => {
+        // Clear mock session
+        localStorage.removeItem('mock_auth_session');
+
         await supabase.auth.signOut();
         setUser(null);
         setProfile(null);
