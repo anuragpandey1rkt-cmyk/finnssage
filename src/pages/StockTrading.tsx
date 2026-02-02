@@ -551,14 +551,21 @@ export default function StockTrading() {
             // Wait and add insight
             await new Promise(resolve => setTimeout(resolve, 2000));
 
+            const rsi = indicators.find(i => i.label.includes("RSI")) || { value: 50, status: "Neutral" };
+            const ma = indicators.find(i => i.label.includes("50-Day")) || { status: "Above" };
+            const vol = indicators.find(i => i.label.includes("Volume")) || { value: "Average" };
+            const betaVal = parseFloat(stock.beta) || 1;
+            const currentPrice = stock.price || 0;
+            const amountDisp = recommendedAmount > 0 ? recommendedAmount : Math.min(investableSurplus * 0.2, 50000);
+
             const insights = [
-                `Market sentiment is bullish. Your surplus: ₹${investableSurplus.toLocaleString()}/month`,
-                `RSI at 58.4 (neutral), MACD bullish. Matches your ${userProfile.riskTolerance} risk profile`,
-                `Price trending above moving averages. Good for ${userProfile.age < 40 ? 'long-term growth' : 'stable returns'}`,
-                `Volume 15% above average. You can invest up to ₹${recommendedAmount.toLocaleString()}`,
-                `${stock.sector} sector outperforming. Aligns with your investment goals`,
-                `Beta ${stock.beta} = ${parseFloat(stock.beta) < 1.2 ? 'Acceptable' : 'Higher'} risk for your profile`,
-                `Target: ₹${(stock.price * 1.12).toFixed(2)} | Stop: ₹${(stock.price * 0.92).toFixed(2)} | Recommended: ₹${recommendedAmount.toLocaleString()}`
+                `Market sentiment is ${stock.change >= 0 ? 'bullish' : 'bearish'} (${stock.changePercent > 0 ? '+' : ''}${stock.changePercent?.toFixed(2) || '0.00'}%). Surplus: ₹${investableSurplus.toLocaleString()}`,
+                `RSI at ${rsi.value} (${rsi.status}). Matches your ${userProfile.riskTolerance} risk profile`,
+                `Price trending ${ma.status.toLowerCase()} moving averages. Good for ${userProfile.age < 40 ? 'long-term growth' : 'stable returns'}`,
+                `Volume ${vol.value}. You can invest up to ₹${amountDisp.toLocaleString()}`,
+                `${stock.sector} sector performance analyzed. Aligns with your goals`,
+                `Beta ${stock.beta} = ${betaVal < 1.2 ? 'Acceptable' : 'Higher'} risk for your profile`,
+                `Target: ₹${(currentPrice * 1.12).toFixed(2)} | Stop: ₹${(currentPrice * 0.92).toFixed(2)} | Allocating: ₹${amountDisp.toLocaleString()}`
             ];
 
             setAiMessages(prev => [...prev, {
