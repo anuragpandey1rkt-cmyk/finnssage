@@ -14,7 +14,7 @@ import {
   Shield,
   LogOut,
   ChevronLeft,
-  Sparkles,
+  Landmark,
   Calculator,
   BarChart3,
   Bitcoin,
@@ -137,7 +137,7 @@ export function AppSidebar() {
       <div className="flex items-center h-16 px-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-info">
-            <Sparkles className="w-5 h-5 text-primary-foreground" />
+            <Landmark className="w-5 h-5 text-primary-foreground" />
           </div>
           {!collapsed && (
             <div className="flex flex-col">

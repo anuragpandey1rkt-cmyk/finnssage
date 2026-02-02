@@ -4,7 +4,7 @@ import {
   EyeOff,
   Mail,
   Lock,
-  Sparkles,
+  Landmark,
   ArrowRight,
   Chrome,
   User,
@@ -169,7 +169,7 @@ export default function Login() {
         <div className="relative z-10">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-info">
-              <Sparkles className="w-6 h-6 text-primary-foreground" />
+              <Landmark className="w-6 h-6 text-primary-foreground" />
             </div>
             <div>
               <span className="text-xl font-bold">FinSage</span>
@@ -218,7 +218,7 @@ export default function Login() {
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
             <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-info">
-              <Sparkles className="w-6 h-6 text-primary-foreground" />
+              <Landmark className="w-6 h-6 text-primary-foreground" />
             </div>
             <div>
               <span className="text-xl font-bold">FinSage</span>

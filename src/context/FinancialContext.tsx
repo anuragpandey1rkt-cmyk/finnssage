@@ -1,6 +1,21 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase, Transaction, Profile } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
+import { parseStatement } from "@/services/statementParser";
+import { fetchStockPrice } from "@/services/marketData";
+
+export interface Investment {
+  id: string;
+  symbol: string;
+  name: string;
+  type: 'stock' | 'sip' | 'mutual_fund';
+  quantity: number;
+  avg_buy_price: number;
+  current_price?: number;
+  current_value?: number;
+  return_amount?: number;
+  return_percentage?: number;
+}
 
 interface FinancialData {
   annualIncome: number;
@@ -10,16 +25,20 @@ interface FinancialData {
   netWorth: number;
   savingsRate: number;
   transactions: Transaction[];
+  investments: Investment[];
   hasCompletedOnboarding: boolean;
 }
 
 interface FinancialContextType {
   financialData: FinancialData;
   transactions: Transaction[];
+  investments: Investment[];
   isLoading: boolean;
   setAnnualIncome: (income: number) => Promise<void>;
   addTransaction: (transaction: Omit<Transaction, "id" | "user_id" | "created_at">) => Promise<void>;
   addTransactions: (transactions: Omit<Transaction, "id" | "user_id" | "created_at">[]) => Promise<void>;
+  uploadStatement: (file: File) => Promise<void>;
+  addInvestment: (investment: Omit<Investment, "id" | "current_price" | "current_value">) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   refreshTransactions: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
@@ -33,6 +52,7 @@ const defaultFinancialData: FinancialData = {
   netWorth: 0,
   savingsRate: 0,
   transactions: [],
+  investments: [],
   hasCompletedOnboarding: false,
 };
 
@@ -42,10 +62,11 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   const { user, profile, updateProfile } = useAuth();
   const [financialData, setFinancialData] = useState<FinancialData>(defaultFinancialData);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [investments, setInvestments] = useState<Investment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Calculate financial metrics from transactions
-  const calculateMetrics = (txns: Transaction[], income: number) => {
+  // Calculate financial metrics from transactions and investments
+  const calculateMetrics = (txns: Transaction[], invs: Investment[], income: number) => {
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
@@ -61,21 +82,32 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       .filter((t) => t.type === "expense")
       .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
-    // Calculate income for current month (from transactions + set income)
+    // Calculate income for current month
     const transactionIncome = monthlyTxns
       .filter((t) => t.type === "income")
       .reduce((sum, t) => sum + t.amount, 0);
 
-    const monthlyIncome = Math.round(income / 12) + transactionIncome;
+    const monthlyIncome = transactionIncome > 0
+      ? transactionIncome
+      : (income > 0 ? Math.round(income / 12) : 0);
+
     const monthlySavings = monthlyIncome - monthlyExpenses;
     const savingsRate = monthlyIncome > 0 ? Math.round((monthlySavings / monthlyIncome) * 100) : 0;
+
+    // Calculate Net Worth: Savings + Investment Value
+    const investmentValue = invs.reduce((sum, inv) => sum + (inv.current_value || 0), 0);
+    // Simple Net Worth calc for now: (Savings est * 12) + Investments. 
+    // Ideally we should track "Cash Balance" properly.
+    // For now, let's assume Net Worth = Investments + (Monthly Savings * 12 as Liquid Cash proxy) 
+    // This is rough but better than hardcoded.
+    const netWorth = investmentValue + (monthlySavings * 12);
 
     return {
       monthlyIncome,
       monthlyExpenses,
       monthlySavings,
       savingsRate,
-      netWorth: Math.round(income * 2.5), // Estimate based on income
+      netWorth
     };
   };
 
@@ -94,23 +126,59 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       return [];
     }
 
-    return data as Transaction[];
+    return (data as Transaction[]) || [];
   };
 
-  // Refresh transactions and recalculate metrics
+  // Fetch investments
+  const fetchInvestments = async () => {
+    if (!user) return [];
+    const { data } = await supabase.from("investments").select("*").eq("user_id", user.id);
+
+    if (!data) return [];
+
+    // Enhance with real-time price
+    const enhanced = await Promise.all(data.map(async (inv: any) => {
+      try {
+        const quote = await fetchStockPrice(inv.symbol);
+        const currentPrice = quote.price;
+        const currentValue = currentPrice * inv.quantity;
+        const investedValue = inv.avg_buy_price * inv.quantity;
+
+        return {
+          ...inv,
+          current_price: currentPrice,
+          current_value: currentValue,
+          return_amount: currentValue - investedValue,
+          return_percentage: ((currentValue - investedValue) / investedValue) * 100
+        };
+      } catch (e) {
+        return inv;
+      }
+    }));
+
+    return enhanced as Investment[];
+  };
+
+  // Refresh all data
   const refreshTransactions = async () => {
     if (!user) return;
 
-    const txns = await fetchTransactions();
+    const [txns, invs] = await Promise.all([
+      fetchTransactions(),
+      fetchInvestments()
+    ]);
+
     setTransactions(txns);
+    setInvestments(invs);
 
     const income = profile?.annual_income || 0;
-    const metrics = calculateMetrics(txns, income);
+    const metrics = calculateMetrics(txns, invs, income);
 
     setFinancialData({
       annualIncome: income,
       ...metrics,
       transactions: txns,
+      investments: invs,
       hasCompletedOnboarding: profile?.onboarding_completed || false,
     });
   };
@@ -119,16 +187,14 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const loadData = async () => {
       if (user) {
-        // User exists, try to load data
         if (profile) {
           await refreshTransactions();
         }
-        // Always set loading to false when user is authenticated
         setIsLoading(false);
       } else {
-        // No user, reset to defaults
         setFinancialData(defaultFinancialData);
         setTransactions([]);
+        setInvestments([]);
         setIsLoading(false);
       }
     };
@@ -145,7 +211,8 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       monthly_income: Math.round(income / 12),
     });
 
-    const metrics = calculateMetrics(transactions, income);
+    // Re-calculate local state eagerly for UI snap
+    const metrics = calculateMetrics(transactions, investments, income);
     setFinancialData((prev) => ({
       ...prev,
       annualIncome: income,
@@ -156,7 +223,6 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
   // Add a single transaction
   const addTransaction = async (transaction: Omit<Transaction, "id" | "user_id" | "created_at">) => {
     if (!user) return;
-
     const { error } = await supabase.from("transactions").insert({
       ...transaction,
       user_id: user.id,
@@ -166,7 +232,6 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       console.error("Error adding transaction:", error);
       throw error;
     }
-
     await refreshTransactions();
   };
 
@@ -185,8 +250,74 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       console.error("Error adding transactions:", error);
       throw error;
     }
-
     await refreshTransactions();
+  };
+
+  // Add Investment
+  const addInvestment = async (investment: Omit<Investment, "id" | "current_price" | "current_value">) => {
+    if (!user) return;
+    const { error } = await supabase.from("investments").insert({
+      ...investment,
+      user_id: user.id
+    });
+    if (error) {
+      console.error("Error adding investment:", error);
+      throw error;
+    }
+    await refreshTransactions();
+  };
+
+  // Upload and process statement
+  const uploadStatement = async (file: File) => {
+    if (!user) return;
+
+    try {
+      // 1. Record statement upload
+      const { data: statement, error: stmtError } = await supabase.from('statements').insert({
+        user_id: user.id,
+        filename: file.name,
+        processed: false
+      }).select().single();
+
+      if (stmtError) throw stmtError;
+
+      // 2. Parse file
+      const parsedTxns = await parseStatement(file);
+
+      if (parsedTxns.length === 0) {
+        throw new Error("No transactions found in statement.");
+      }
+
+      // 3. Prepare transactions with statement_id
+      const transactionsToInsert = parsedTxns.map(t => ({
+        user_id: user.id,
+        statement_id: statement.id,
+        amount: t.amount,
+        type: t.type,
+        category: t.category,
+        description: t.description,
+        date: t.date.toISOString(),
+        source: 'statement_upload'
+      }));
+
+      // 4. Insert transactions
+      const { error: txnError } = await supabase.from('transactions').insert(transactionsToInsert);
+
+      if (txnError) throw txnError;
+
+      // 5. Mark statement as processed
+      await supabase.from('statements').update({
+        processed: true,
+        transaction_count: parsedTxns.length
+      }).eq('id', statement.id);
+
+      // 6. Refresh UI
+      await refreshTransactions();
+
+    } catch (error) {
+      console.error("Error parsing statement:", error);
+      throw error;
+    }
   };
 
   // Delete a transaction
@@ -226,10 +357,13 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       value={{
         financialData,
         transactions,
+        investments,
         isLoading,
         setAnnualIncome,
         addTransaction,
         addTransactions,
+        uploadStatement,
+        addInvestment,
         deleteTransaction,
         refreshTransactions,
         completeOnboarding,

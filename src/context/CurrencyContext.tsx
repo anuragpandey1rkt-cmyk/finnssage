@@ -1,42 +1,26 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, ReactNode } from "react";
 
-type Currency = "USD" | "INR";
+type Currency = "INR";
 
 interface CurrencyContextType {
     currency: Currency;
-    setCurrency: (currency: Currency) => void;
     symbol: string;
     format: (amount: number) => string;
-    convert: (usdAmount: number) => number;
 }
-
-const EXCHANGE_RATE = 83.5; // USD to INR
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
-    const [currency, setCurrency] = useState<Currency>("USD");
-
-    const symbol = currency === "USD" ? "$" : "₹";
-
-    const convert = (usdAmount: number): number => {
-        if (currency === "INR") {
-            return usdAmount * EXCHANGE_RATE;
-        }
-        return usdAmount;
-    };
+    const currency: Currency = "INR";
+    const symbol = "₹";
 
     const format = (amount: number): string => {
-        const converted = convert(amount);
-        if (currency === "INR") {
-            // Indian number formatting (lakhs/crores)
-            return `₹${converted.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
-        }
-        return `$${converted.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+        // Indian number formatting (lakhs/crores)
+        return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
     };
 
     return (
-        <CurrencyContext.Provider value={{ currency, setCurrency, symbol, format, convert }}>
+        <CurrencyContext.Provider value={{ currency, symbol, format }}>
             {children}
         </CurrencyContext.Provider>
     );
