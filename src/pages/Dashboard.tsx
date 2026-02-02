@@ -74,6 +74,7 @@ const generateInsights = (financialData: any) => {
 };
 
 /* Insights Generation */
+// Re-triggering build to verify syntax fix
 export default function Dashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
