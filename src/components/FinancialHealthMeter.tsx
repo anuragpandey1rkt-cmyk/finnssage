@@ -22,13 +22,19 @@ interface HealthMetric {
     description: string;
 }
 
-export function FinancialHealthMeter() {
+interface FinancialHealthMeterProps {
+    income?: number;
+    expenses?: number;
+    savings?: number;
+}
+
+export function FinancialHealthMeter({ income: propIncome, expenses: propExpenses, savings: propSavings }: FinancialHealthMeterProps = {}) {
     const { financialData } = useFinancial();
     const { format } = useCurrency();
 
-    const income = financialData.monthlyIncome || 8000;
-    const expenses = financialData.monthlyExpenses || 5200;
-    const savings = income - expenses;
+    const income = propIncome ?? (financialData.monthlyIncome || 0);
+    const expenses = propExpenses ?? (financialData.monthlyExpenses || 0);
+    const savings = propSavings ?? (income - expenses);
 
     // Calculate key ratios
     const savingsRate = income > 0 ? (savings / income) * 100 : 0;

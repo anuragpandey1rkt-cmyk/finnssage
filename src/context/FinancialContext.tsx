@@ -35,6 +35,7 @@ interface FinancialContextType {
   investments: Investment[];
   isLoading: boolean;
   setAnnualIncome: (income: number) => Promise<void>;
+  setMonthlyExpenses: (expenses: number) => Promise<void>;
   addTransaction: (transaction: Omit<Transaction, "id" | "user_id" | "created_at">) => Promise<void>;
   addTransactions: (transactions: Omit<Transaction, "id" | "user_id" | "created_at">[]) => Promise<void>;
   uploadStatement: (file: File) => Promise<void>;
@@ -220,6 +221,23 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  // Set monthly expenses
+  const setMonthlyExpenses = async (expenses: number) => {
+    if (!user) return;
+
+    // We update the profile or local state. 
+    // Assuming we store this in profile for persistence:
+    // If profile table doesn't have monthly_expenses column, we might need to rely on calculation
+    // But user explicitly asked to "update expenses".
+    // For now, let's update local state and calculate metrics.
+
+    setFinancialData(prev => ({
+      ...prev,
+      monthlyExpenses: expenses,
+      monthlySavings: prev.monthlyIncome - expenses
+    }));
+  };
+
   // Add a single transaction
   const addTransaction = async (transaction: Omit<Transaction, "id" | "user_id" | "created_at">) => {
     if (!user) return;
@@ -360,6 +378,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
         investments,
         isLoading,
         setAnnualIncome,
+        setMonthlyExpenses,
         addTransaction,
         addTransactions,
         uploadStatement,

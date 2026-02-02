@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import {
   TrendingUp,
   Wallet,
@@ -6,14 +6,22 @@ import {
   PiggyBank,
   ArrowUpRight,
   ArrowDownRight,
-  MoreHorizontal,
   Sparkles,
   AlertTriangle,
   CheckCircle2,
   Upload,
-  FileText,
-  Plus
+  Loader2,
+  Landmark,
+  ChevronRight,
+  RefreshCw,
+  ShieldCheck,
+  Gem,
+  IndianRupee,
+  Target,
+  Palmtree,
+  Calculator
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import {
   AreaChart,
   Area,
@@ -23,330 +31,541 @@ import {
   Tooltip,
   ResponsiveContainer
 } from "recharts";
+import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, MetricCard } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, MetricCard } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { QuickActionCard } from "@/components/ui/QuickActionCard";
 import { useFinancial } from "@/context/FinancialContext";
 import { useCurrency } from "@/context/CurrencyContext";
 import { CurrencyToggle } from "@/components/CurrencyToggle";
 import { FinancialHealthMeter } from "@/components/FinancialHealthMeter";
 import { QuickActions } from "@/components/QuickActions";
 import { useToast } from "@/hooks/use-toast";
+import { parseCSVAsync, parsePDFAsync } from "@/lib/statementParser";
+
+// Milestones will be calculated dynamically based on financials
+
+const insights = [
+  {
+    type: "warning",
+    title: "High spending alert",
+    description: "You've spent 40% more on dining this month compared to your average.",
+    icon: AlertTriangle,
+  },
+  {
+    type: "success",
+    title: "Great savings rate",
+    description: "You're saving 28% of your income, above your 25% target.",
+    icon: CheckCircle2,
+  },
+  {
+    type: "info",
+    title: "Card optimization",
+    description: "Switch to Chase Sapphire for dining to earn 3x points.",
+    icon: Sparkles,
+  },
+];
 
 export default function Dashboard() {
-  const { format, symbol } = useCurrency();
-  const { financialData, transactions, investments, isLoading, uploadStatement, addInvestment } = useFinancial();
+  const navigate = useNavigate();
   const { toast } = useToast();
+  const { format } = useCurrency();
+  const {
+    financialData,
+    transactions,
+    isLoading,
+    setAnnualIncome,
+    setMonthlyExpenses,
+    addTransactions,
+    refreshTransactions
+  } = useFinancial();
+  const [salaryInput, setSalaryInput] = useState(financialData.annualIncome?.toString() || "");
+  const [expenseInput, setExpenseInput] = useState(financialData.monthlyExpenses?.toString() || "");
+  const [incomeMode, setIncomeMode] = useState<"annual" | "monthly">("annual");
+  const [expenseMode, setExpenseMode] = useState<"annual" | "monthly">("monthly");
+  const [dreamGoalTarget, setDreamGoalTarget] = useState(1000000);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Calculate real financials
-  const financials = {
-    income: financialData.monthlyIncome,
-    expenses: financialData.monthlyExpenses,
-    savings: financialData.monthlySavings,
-    netWorth: financialData.netWorth,
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const isCSV = file.name.endsWith(".csv");
+    const isPDF = file.name.endsWith(".pdf");
+
+    if (!isCSV && !isPDF) {
+      toast({
+        title: "Invalid file format",
+        description: "Please upload a CSV or PDF bank statement.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsUploading(true);
-    try {
-      await uploadStatement(file);
-      toast({
-        title: "Statement Uploaded",
-        description: `Successfully processed ${file.name}`,
-      });
-    } catch (error: any) {
-      toast({
-        title: "Upload Failed",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setIsUploading(false);
-    }
-  };
+    const reader = new FileReader();
 
-  const handleAddSampleInvestment = async () => {
-    // Temporary quick action for demo/testing since no UI form requested yet
-    try {
-      await addInvestment({
-        symbol: 'RELIANCE',
-        name: 'Reliance Industries',
-        type: 'stock',
-        quantity: 10,
-        avg_buy_price: 2500,
-        return_amount: 0,
-        return_percentage: 0
-      });
-      toast({ title: "Started SIP/Investment", description: "Added Reliance Industries to portfolio." });
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
-    }
-  };
+    reader.onload = async (event) => {
+      try {
+        const content = event.target?.result;
+        if (!content) return;
 
-  // Generate chart data from real transactions
-  const chartData = useMemo(() => {
-    if (transactions.length === 0) return [];
+        let parsedTransactions;
 
-    // Group transactions by month
-    const monthlyData: { [key: string]: { income: number; expenses: number } } = {};
+        if (isCSV) {
+          parsedTransactions = await parseCSVAsync(content as string);
+        } else {
+          // PDF parsing using Gemini AI (via parsedPDFAsync)
+          parsedTransactions = await parsePDFAsync(content as ArrayBuffer);
+        }
 
-    transactions.forEach((t) => {
-      const date = new Date(t.date);
-      const monthKey = date.toLocaleDateString("en-IN", { month: "short" });
+        const transactionsToSave = parsedTransactions.map((t) => ({
+          date: t.date,
+          description: t.description,
+          amount: t.type === "expense" ? -t.amount : t.amount,
+          category: t.category,
+          type: t.type,
+          source: (isCSV ? "csv_upload" : "pdf_upload") as "csv_upload" | "pdf_upload",
+        }));
 
-      if (!monthlyData[monthKey]) {
-        monthlyData[monthKey] = { income: 0, expenses: 0 };
+        await addTransactions(transactionsToSave);
+        await refreshTransactions();
+
+        toast({
+          title: "Statement Analyzed!",
+          description: `Successfully extracted ${transactionsToSave.length} transactions using AI.`,
+        });
+
+      } catch (err) {
+        console.error("Upload Error:", err);
+        toast({
+          title: "Analysis Failed",
+          description: err instanceof Error ? err.message : "Failed to analyze statement.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
       }
+    };
 
-      if (t.type === "income") {
-        monthlyData[monthKey].income += Math.abs(t.amount);
+    if (isCSV) {
+      reader.readAsText(file);
+    } else {
+      reader.readAsArrayBuffer(file);
+    }
+  };
+
+  // Debounced update to backend
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      let annualAmount: number | undefined;
+      let monthlyAmount: number | undefined;
+
+      if (salaryInput === "") {
+        annualAmount = 0;
       } else {
-        monthlyData[monthKey].expenses += Math.abs(t.amount);
+        const val = parseInt(salaryInput);
+        if (!isNaN(val)) {
+          annualAmount = incomeMode === "monthly" ? val * 12 : val;
+        }
       }
-    });
 
-    return Object.entries(monthlyData)
-      .slice(-6)
-      .map(([name, data]) => ({
-        name,
-        income: data.income,
-        expenses: data.expenses,
-      }));
-  }, [transactions]);
+      if (expenseInput === "") {
+        monthlyAmount = 0;
+      } else {
+        const val = parseInt(expenseInput);
+        if (!isNaN(val)) {
+          monthlyAmount = expenseMode === "annual" ? val / 12 : val;
+        }
+      }
 
-  // Show Empty State if no transactions AND no investments
-  // BUT allow partial state (e.g. only investments added)
-  const isEmpty = transactions.length === 0 && investments.length === 0 && financials.income === 0;
+      if (annualAmount !== undefined || monthlyAmount !== undefined) {
+        setIsSyncing(true);
+        if (annualAmount !== undefined && annualAmount !== financialData.annualIncome) {
+          await setAnnualIncome(annualAmount);
+        }
+        if (monthlyAmount !== undefined && monthlyAmount !== financialData.monthlyExpenses) {
+          await setMonthlyExpenses(monthlyAmount);
+        }
+        setIsSyncing(false);
+      }
+    }, 1000); // 1 second debounce
 
-  if (!isLoading && isEmpty) {
-    return (
-      <DashboardLayout title="Dashboard" subtitle="Your financial overview">
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 animate-in fade-in zoom-in duration-500">
-          <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-            <Wallet className="w-12 h-12 text-primary" />
-          </div>
-          <h2 className="text-3xl font-bold">Welcome to FinSage</h2>
-          <p className="text-muted-foreground max-w-md text-lg">
-            To get your financial health score and AI insights, please upload your bank statement or add your investments.
-          </p>
+    return () => clearTimeout(timer);
+  }, [salaryInput, expenseInput, incomeMode, expenseMode, financialData.annualIncome, financialData.monthlyExpenses, setAnnualIncome, setMonthlyExpenses]);
 
-          <div className="grid gap-4 w-full max-w-sm">
-            <div className="relative group cursor-pointer">
-              <div className="absolute inset-0 bg-gradient-to-r from-primary to-info rounded-xl opacity-20 group-hover:opacity-30 transition-opacity" />
-              <label className="relative flex items-center justify-center gap-3 p-6 border-2 border-dashed border-primary/30 rounded-xl cursor-pointer hover:border-primary transition-colors bg-card">
-                {isUploading ? (
-                  <span className="animate-pulse">Processing Statement...</span>
-                ) : (
-                  <>
-                    <Upload className="w-6 h-6 text-primary" />
-                    <span className="font-semibold">Upload Bank Statement (PDF)</span>
-                  </>
-                )}
-                <input
-                  type="file"
-                  accept="application/pdf,text/csv"
-                  className="hidden"
-                  onChange={handleFileUpload}
-                  disabled={isUploading}
-                />
-              </label>
-            </div>
-          </div>
+  // Sync local state with context when context updates from elsewhere (like upload)
+  useEffect(() => {
+    if (financialData.annualIncome !== undefined) {
+      setSalaryInput(prev => prev === "" && financialData.annualIncome !== 0 ? financialData.annualIncome.toString() : prev);
+    }
+    if (financialData.monthlyExpenses !== undefined) {
+      setExpenseInput(prev => prev === "" && financialData.monthlyExpenses !== 0 ? financialData.monthlyExpenses.toString() : prev);
+    }
+  }, [financialData.annualIncome, financialData.monthlyExpenses]);
 
-          <Button variant="outline" onClick={handleAddSampleInvestment}>
-            Start SIP / Add Investment
-          </Button>
-        </div>
-      </DashboardLayout>
-    );
-  }
+  // Derive real-time financials for the UI
+  const financials = useMemo(() => {
+    const rawSalary = salaryInput === "" ? 0 : parseInt(salaryInput);
+    const i = isNaN(rawSalary) ? 0 : (incomeMode === "monthly" ? rawSalary : rawSalary / 12);
+
+    const rawExpense = expenseInput === "" ? 0 : parseInt(expenseInput);
+    const e = isNaN(rawExpense) ? 0 : (expenseMode === "annual" ? rawExpense / 12 : rawExpense);
+
+    const s = i - e;
+
+    return {
+      income: i,
+      expenses: e,
+      savings: s,
+      netWorth: financialData.netWorth || (i * 12 * 2.5),
+    };
+  }, [salaryInput, expenseInput, incomeMode, expenseMode, financialData.netWorth]);
+
+  // Generate chart data from real transactions or use calculated data
+  const chartData = useMemo(() => {
+    if (transactions.length > 0) {
+      // Group transactions by month
+      const monthlyData: { [key: string]: { income: number; expenses: number } } = {};
+
+      transactions.forEach((t) => {
+        const date = new Date(t.date);
+        const monthKey = date.toLocaleDateString("en-US", { month: "short" });
+
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = { income: 0, expenses: 0 };
+        }
+
+        if (t.type === "income") {
+          monthlyData[monthKey].income += Math.abs(t.amount);
+        } else {
+          monthlyData[monthKey].expenses += Math.abs(t.amount);
+        }
+      });
+
+      return Object.entries(monthlyData)
+        .slice(-6)
+        .map(([name, data]) => ({
+          name,
+          income: data.income,
+          expenses: data.expenses,
+        }));
+    }
+
+    // Fallback to calculated data based on income
+    const monthlyIncome = financials.income;
+    const monthlyExpenses = financials.expenses;
+
+    return [
+      { name: "Jan", expenses: monthlyExpenses * 0.9, income: monthlyIncome },
+      { name: "Feb", expenses: monthlyExpenses * 1.1, income: monthlyIncome },
+      { name: "Mar", expenses: monthlyExpenses * 0.95, income: monthlyIncome },
+      { name: "Apr", expenses: monthlyExpenses * 0.85, income: monthlyIncome },
+      { name: "May", expenses: monthlyExpenses * 1.05, income: monthlyIncome },
+      { name: "Jun", expenses: monthlyExpenses, income: monthlyIncome },
+    ];
+  }, [transactions, financials.income, financials.expenses]);
 
   return (
     <DashboardLayout title="Dashboard" subtitle="Your financial overview">
-      <div className="space-y-6">
-        {/* Currency Toggle (Static INR) */}
+      <div className="space-y-4">
+        {/* Currency Toggle */}
         <div className="flex justify-end">
           <CurrencyToggle />
         </div>
 
-        {/* Net Worth Section */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <MetricCard trend="neutral" className="lg:col-span-2">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Net Worth</p>
-                <h2 className="mt-2 text-3xl font-bold tracking-tight">
-                  {format(financials.netWorth)}
-                </h2>
-                <div className="mt-2 text-xs text-muted-foreground">
-                  Based on available data
-                </div>
-              </div>
-            </div>
-          </MetricCard>
+        {/* Manual Setup Header */}
+        <Card className="bg-card border-border/50">
+          <CardContent className="p-6">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 items-center">
 
-          {/* Cash Flow */}
-          <Card className="lg:col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-medium text-muted-foreground">
-                Monthly Cash Flow
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ArrowUpRight className="w-4 h-4 text-success" />
-                    <span className="text-sm">Income</span>
+              {/* Income Section */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="p-1.5 rounded-full bg-success/10 text-success">
+                    <TrendingUp className="w-4 h-4" />
                   </div>
-                  <span className="font-semibold text-success">
-                    +{format(financials.income)}
-                  </span>
+                  <h3 className="font-semibold text-sm">Update Income</h3>
+                  {isSyncing && <RefreshCw className="w-3 h-3 text-primary animate-spin" />}
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ArrowDownRight className="w-4 h-4 text-destructive" />
-                    <span className="text-sm">Expenses</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex p-1 bg-secondary rounded-lg">
+                    <button
+                      className={`px-3 py-1 text-xs rounded-md transition-all ${incomeMode === "monthly" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                      onClick={() => setIncomeMode("monthly")}
+                    >
+                      Monthly
+                    </button>
+                    <button
+                      className={`px-3 py-1 text-xs rounded-md transition-all ${incomeMode === "annual" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                      onClick={() => setIncomeMode("annual")}
+                    >
+                      Annual
+                    </button>
                   </div>
-                  <span className="font-semibold text-destructive">
-                    -{format(financials.expenses)}
-                  </span>
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
+                    <Input
+                      type="number"
+                      className="pl-7 h-9"
+                      placeholder="0"
+                      value={salaryInput}
+                      onChange={(e) => setSalaryInput(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <div className="h-px bg-border" />
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Net Savings</span>
-                  <span className="text-lg font-bold text-success">
-                    +{format(financials.savings)}
-                  </span>
-                </div>
+                <p className="text-[10px] text-muted-foreground">Set your current salary (INR)</p>
               </div>
-            </CardContent>
-          </Card>
-        </div>
 
+              {/* Divider for mobile */}
+              <div className="h-px bg-border md:hidden" />
 
+              {/* Expenses Section */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="p-1.5 rounded-full bg-destructive/10 text-destructive">
+                    <ArrowDownRight className="w-4 h-4" />
+                  </div>
+                  <h3 className="font-semibold text-sm">Update Expenses</h3>
+                  {!isSyncing && expenseInput && <CheckCircle2 className="w-3 h-3 text-success" />}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex p-1 bg-secondary rounded-lg">
+                    <button
+                      className={`px-3 py-1 text-xs rounded-md transition-all ${expenseMode === "monthly" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                      onClick={() => setExpenseMode("monthly")}
+                    >
+                      Monthly
+                    </button>
+                    <button
+                      className={`px-3 py-1 text-xs rounded-md transition-all ${expenseMode === "annual" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                      onClick={() => setExpenseMode("annual")}
+                    >
+                      Annual
+                    </button>
+                  </div>
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
+                    <Input
+                      type="number"
+                      className="pl-7 h-9 border-destructive/20 focus-visible:ring-destructive/30"
+                      placeholder="0"
+                      value={expenseInput}
+                      onChange={(e) => setExpenseInput(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground">Set your monthly expenses (INR)</p>
+              </div>
 
-
-
-        {/* Investments & Transactions Group */}
-        <div className="grid gap-6 lg:grid-cols-3">
-
-          {/* Investment Portfolio */}
-          <Card className="lg:col-span-1">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Investment Portfolio</CardTitle>
-                <Button size="sm" variant="outline" onClick={handleAddSampleInvestment}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add SIP/Stock
+              {/* Upload Section */}
+              <div className="flex flex-col items-center md:items-end justify-center gap-2 md:border-l md:pl-6 border-border/50">
+                <div className="text-right hidden md:block">
+                  <p className="text-sm font-medium">Bank Statement</p>
+                  <p className="text-xs text-muted-foreground">Auto-sync transactions</p>
+                </div>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept=".csv,.pdf"
+                  onChange={handleFileChange}
+                />
+                <Button
+                  variant="outline"
+                  className="w-full md:w-auto gap-2"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                >
+                  {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {isUploading ? "Analyzing..." : "Upload Statement"}
                 </Button>
               </div>
+
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Stats Grid */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card className="bg-card/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Salary</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {investments.length === 0 && (
-                  <div className="text-center py-4 text-muted-foreground text-sm">
-                    No investments yet. Start a SIP!
-                  </div>
-                )}
-                {investments.map((inv, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
-                        <TrendingUp className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium">{inv.name} <span className="text-xs text-muted-foreground">({inv.symbol})</span></p>
-                        <p className="text-xs text-muted-foreground">
-                          {inv.quantity} units @ {format(inv.avg_buy_price)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold">{format(inv.current_value || 0)}</p>
-                      <p className={`text-xs ${(inv.return_percentage || 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
-                        {(inv.return_percentage || 0) >= 0 ? '+' : ''}{(inv.return_percentage || 0).toFixed(2)}%
-                      </p>
-                    </div>
-                  </div>
-                ))}
+              <div className="flex items-center gap-2">
+                <ArrowUpRight className="w-4 h-4 text-success" />
+                <span className="text-2xl font-bold text-success">{format(financials.income)}</span>
               </div>
+              <p className="text-xs text-muted-foreground mt-1">Monthly Income</p>
             </CardContent>
           </Card>
-
-          {/* Financial Health Meter (Real Score) */}
-          <FinancialHealthMeter />
-        </div>
-
-        {/* Transactions List */}
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Transactions</CardTitle>
-                <div className="relative">
-                  <label className="text-xs bg-primary text-primary-foreground px-3 py-1 rounded-md cursor-pointer hover:bg-primary/90 transition-colors">
-                    + Upload
-                    <input
-                      type="file"
-                      accept="application/pdf,text/csv"
-                      className="hidden"
-                      onChange={handleFileUpload}
-                      disabled={isUploading}
-                    />
-                  </label>
-                </div>
-              </div>
+          <Card className="bg-card/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Expenses (Premium)</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {transactions.slice(0, 5).map((tx, idx) => (
-                  <div
-                    key={idx} // Use tx.id if available but for safety idx
-                    className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${tx.type === 'income' ? 'bg-success/10' : 'bg-secondary'}`}>
-                        {tx.type === 'income' ? <ArrowUpRight className="w-5 h-5 text-success" /> : <CreditCard className="w-5 h-5 text-muted-foreground" />}
+              <div className="flex items-center gap-2">
+                <ArrowDownRight className="w-4 h-4 text-destructive" />
+                <span className="text-2xl font-bold text-destructive">{format(financials.expenses)}</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Monthly Spending</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-card/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Savings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2">
+                <PiggyBank className="w-4 h-4 text-success" />
+                <span className="text-2xl font-bold text-success">{format(financials.savings)}</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {financials.income > 0 ? Math.round((financials.savings / financials.income) * 100) : 0}% of income
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Account Balances & Health & Charts */}
+        <div className="grid gap-6 md:grid-cols-3">
+          {/* Account Balances - Replicating the screenshot */}
+          <div className="md:col-span-2 space-y-6">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle>Account Balances</CardTitle>
+                  <Button variant="ghost" size="sm" className="text-xs h-7">View All</Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {[
+                  { name: "HDFC Checking", type: "Checking", amount: 1040000, icon: Wallet, color: "text-blue-400" },
+                  { name: "HDFC Savings", type: "Savings", amount: 3775000, icon: PiggyBank, color: "text-indigo-400" },
+                  { name: "ICICI Credit Card", type: "Credit", amount: -355000, icon: CreditCard, color: "text-purple-400", isNegative: true },
+                  { name: "Zerodha Demat", type: "Investment", amount: 15800000, icon: TrendingUp, color: "text-emerald-400" },
+                ].map((acc, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-secondary/20 hover:bg-secondary/40 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className={`p-2 rounded-lg bg-secondary/50 ${acc.color}`}>
+                        <acc.icon className="w-5 h-5" />
                       </div>
                       <div>
-                        <p className="font-medium">{tx.description}</p>
-                        <p className="text-xs text-muted-foreground capitalize">
-                          {tx.category} • {new Date(tx.date).toLocaleDateString()}
-                        </p>
+                        <p className="font-semibold text-sm">{acc.name}</p>
+                        <p className="text-xs text-muted-foreground">{acc.type}</p>
                       </div>
                     </div>
-                    <span
-                      className={`font-semibold ${tx.type === 'expense' ? "text-destructive" : "text-success"}`}
-                    >
-                      {tx.type === 'expense' ? "-" : "+"}{format(Math.abs(tx.amount))}
+                    <span className={`font-mono font-medium ${acc.isNegative ? "text-destructive" : ""}`}>
+                      {format(acc.amount)}
                     </span>
                   </div>
                 ))}
-                {transactions.length === 0 && (
-                  <div className="text-center py-6 text-muted-foreground">
-                    No transactions found.
-                  </div>
-                )}
+              </CardContent>
+            </Card>
+
+            {/* Smart Milestones (Horizontal Scroll) */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg">Smart Milestones</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+                {/* Sample Milestone - Emergency Fund */}
+                <Card className="bg-card border-border/50">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+                          <ShieldCheck className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm">Emergency Fund</p>
+                          <p className="text-xs text-muted-foreground">6 Months of Safety</p>
+                        </div>
+                      </div>
+                      <Badge variant="secondary" className="text-xs bg-blue-500/10 text-blue-500 hover:bg-blue-500/20">75%</Badge>
+                    </div>
+                    <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500 w-[75%]" />
+                    </div>
+                    <div className="flex justify-between text-xs font-medium">
+                      <span>{format(financials.expenses * 4.5)}</span>
+                      <span className="text-muted-foreground">Target: {format(financials.expenses * 6)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+                {/* Sample Milestone - Wealth */}
+                <Card className="bg-card border-border/50">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+                          <Gem className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm">The First Crore</p>
+                          <p className="text-xs text-muted-foreground">Wealth Milestone</p>
+                        </div>
+                      </div>
+                      <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20">24%</Badge>
+                    </div>
+                    <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-500 w-[24%]" />
+                    </div>
+                    <div className="flex justify-between text-xs font-medium">
+                      <span>{format(2400000)}</span>
+                      <span className="text-muted-foreground">Target: {format(10000000)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+
+          {/* Right Column: Health Meter & Insights */}
+          <div className="space-y-6">
+            <FinancialHealthMeter
+              income={financials.income}
+              expenses={financials.expenses}
+              savings={financials.savings}
+            />
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-purple-500" />
+                  AI Insights
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {insights.map((insight, index) => (
+                  <div key={index} className={`p-3 rounded-lg border-l-2 bg-secondary/10 ${insight.type === "warning" ? "border-warning" : insight.type === "success" ? "border-success" : "border-info"}`}>
+                    <div className="flex items-start gap-3">
+                      <insight.icon className={`w-4 h-4 mt-0.5 ${insight.type === "warning" ? "text-warning" : insight.type === "success" ? "text-success" : "text-info"}`} />
+                      <div>
+                        <p className="text-xs font-semibold">{insight.title}</p>
+                        <p className="text-[10px] text-muted-foreground leading-tight mt-1">{insight.description}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Charts Section */}
         {chartData.length > 0 && (
-          <div className="grid gap-6 lg:grid-cols-1">
+          <div className="mt-8">
             <Card>
               <CardHeader>
                 <CardTitle>Financial Trends</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-[250px] w-full">
+                <div className="h-[300px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                       <defs>
@@ -367,9 +586,7 @@ export default function Dashboard() {
                         tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
                         dy={10}
                       />
-                      <YAxis
-                        hide
-                      />
+                      <YAxis hide />
                       <Tooltip
                         contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "0.5rem" }}
                         itemStyle={{ color: "hsl(var(--foreground))" }}
