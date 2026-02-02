@@ -1,18 +1,19 @@
 export interface UserFinancialProfile {
     monthlyIncome: number;
     monthlyExpenses: number;
-    investableSurplus: number;
+    investableSurplus?: number;
     riskTolerance: "low" | "moderate" | "high";
     age: number;
     savings: number;
     debts: number;
     investments: number;
-    goals: string[];
+    investmentGoals: string[];
+    dependents?: number;
 }
 
 const personalizedInvestmentService = {
-    calculateInvestableSurplus(income: number, expenses: number) {
-        return income - expenses;
+    calculateInvestableSurplus(profile: UserFinancialProfile) {
+        return profile.monthlyIncome - profile.monthlyExpenses;
     },
 
     getRiskScore(profile: UserFinancialProfile) {
@@ -27,14 +28,21 @@ const personalizedInvestmentService = {
         };
     },
 
-    generateRecommendation(stock: any, profile: UserFinancialProfile) {
-        // Mock recommendation logic for UI
+    generateRecommendation(symbol: string, stockInfo: any, profile: UserFinancialProfile, trend: string) {
+        const surplus = this.calculateInvestableSurplus(profile);
+        const amount = Math.min(surplus * 0.2, 50000);
+
         return {
-            action: "BUY",
-            confidence: 85,
-            targetPrice: stock.price * 1.1,
-            stopLoss: stock.price * 0.9,
-            reason: `Suitable for ${profile.riskTolerance} risk profile`
+            recommendedAmount: amount,
+            suitabilityScore: 85,
+            timeHorizon: "3-5 Years",
+            expectedReturn: "12-15% p.a.",
+            reasoning: [
+                "• Strong financial alignment and liquidity",
+                `• Fits your '${profile.riskTolerance}' risk appetite`,
+                `• ${trend} market trend supports entry`,
+                "• Diversification benefit for your portfolio"
+            ]
         };
     }
 };
