@@ -31,7 +31,6 @@ import { useFinancial } from "@/context/FinancialContext";
 import { useCurrency } from "@/context/CurrencyContext";
 import { CurrencyToggle } from "@/components/CurrencyToggle";
 import { FinancialHealthMeter } from "@/components/FinancialHealthMeter";
-import { QuickActions } from "@/components/QuickActions";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
@@ -398,9 +397,6 @@ export default function Dashboard() {
             </Card>
           </div>
         )}
-
-        {/* Quick Actions Section */}
-        <QuickActions />
       </div>
     </DashboardLayout>
   );
