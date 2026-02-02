@@ -52,11 +52,11 @@ const cryptoData: Record<string, {
         price: 48500.00,
         change24h: 1250.00,
         changePercent24h: 2.64,
-        marketCap: "$952B",
-        volume24h: "$28.4B",
+        marketCap: "₹952B",
+        volume24h: "₹28.4B",
         circulatingSupply: "19.6M BTC",
         maxSupply: "21M BTC",
-        allTimeHigh: "$69,000",
+        allTimeHigh: "₹69,000",
         description: "Bitcoin is a decentralized digital currency that can be transferred on the peer-to-peer bitcoin network.",
     },
     ETH: {
@@ -65,11 +65,11 @@ const cryptoData: Record<string, {
         price: 3200.00,
         change24h: 85.50,
         changePercent24h: 2.74,
-        marketCap: "$384B",
-        volume24h: "$15.2B",
+        marketCap: "₹384B",
+        volume24h: "₹15.2B",
         circulatingSupply: "120.2M ETH",
         maxSupply: "Unlimited",
-        allTimeHigh: "$4,878",
+        allTimeHigh: "₹4,878",
         description: "Ethereum is a decentralized platform that enables smart contracts and decentralized applications.",
     },
     SOL: {
@@ -78,11 +78,11 @@ const cryptoData: Record<string, {
         price: 98.50,
         change24h: -3.20,
         changePercent24h: -3.15,
-        marketCap: "$42.8B",
-        volume24h: "$2.1B",
+        marketCap: "₹42.8B",
+        volume24h: "₹2.1B",
         circulatingSupply: "435M SOL",
         maxSupply: "Unlimited",
-        allTimeHigh: "$260",
+        allTimeHigh: "₹260",
         description: "Solana is a high-performance blockchain supporting builders around the world creating crypto apps.",
     },
     XRP: {
@@ -91,11 +91,11 @@ const cryptoData: Record<string, {
         price: 0.62,
         change24h: 0.02,
         changePercent24h: 3.33,
-        marketCap: "$33.6B",
-        volume24h: "$1.8B",
+        marketCap: "₹33.6B",
+        volume24h: "₹1.8B",
         circulatingSupply: "54.2B XRP",
         maxSupply: "100B XRP",
-        allTimeHigh: "$3.40",
+        allTimeHigh: "₹3.40",
         description: "XRP is the native cryptocurrency of the XRP Ledger, designed for fast and low-cost transactions.",
     },
     ADA: {
@@ -104,11 +104,11 @@ const cryptoData: Record<string, {
         price: 0.58,
         change24h: 0.015,
         changePercent24h: 2.65,
-        marketCap: "$20.4B",
-        volume24h: "$456M",
+        marketCap: "₹20.4B",
+        volume24h: "₹456M",
         circulatingSupply: "35.2B ADA",
         maxSupply: "45B ADA",
-        allTimeHigh: "$3.10",
+        allTimeHigh: "₹3.10",
         description: "Cardano is a proof-of-stake blockchain platform with smart contract functionality.",
     },
 };
@@ -163,7 +163,7 @@ export default function CryptoTrading() {
     const totalCost = amount * crypto.price;
 
     const handleOrder = () => {
-        alert(`${action.toUpperCase()} Order Placed!\n\n${amount} ${crypto.symbol} @ $${crypto.price.toLocaleString()}\nTotal: $${totalCost.toLocaleString()}`);
+        alert(`${action.toUpperCase()} Order Placed!\n\n${amount} ${crypto.symbol} @ ₹${crypto.price.toLocaleString()}\nTotal: ₹${totalCost.toLocaleString()}`);
     };
 
     return (
@@ -199,11 +199,11 @@ export default function CryptoTrading() {
                                 </div>
 
                                 <div className="text-right">
-                                    <div className="text-3xl font-bold">${crypto.price.toLocaleString()}</div>
+                                    <div className="text-3xl font-bold">₹{crypto.price.toLocaleString()}</div>
                                     <div className={`flex items-center gap-1 justify-end ${crypto.change24h >= 0 ? "text-success" : "text-destructive"}`}>
                                         {crypto.change24h >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
                                         <span className="font-medium">
-                                            {crypto.change24h >= 0 ? "+" : ""}${crypto.change24h.toLocaleString()} ({crypto.change24h >= 0 ? "+" : ""}{crypto.changePercent24h.toFixed(2)}%)
+                                            {crypto.change24h >= 0 ? "+" : ""}₹{crypto.change24h.toLocaleString()} ({crypto.change24h >= 0 ? "+" : ""}{crypto.changePercent24h.toFixed(2)}%)
                                         </span>
                                         <span className="text-muted-foreground text-xs ml-1">24h</span>
                                     </div>
@@ -261,7 +261,7 @@ export default function CryptoTrading() {
                                         <YAxis domain={["auto", "auto"]} axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} />
                                         <Tooltip
                                             contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "0.5rem" }}
-                                            formatter={(value: number) => [`$${value.toLocaleString()}`, "Price"]}
+                                            formatter={(value: number) => [`₹${value.toLocaleString()}`, "Price"]}
                                         />
                                         <Area
                                             type="monotone"
@@ -298,9 +298,9 @@ export default function CryptoTrading() {
                                         <tbody>
                                             {orderBook.bids.map((bid, i) => (
                                                 <tr key={i} className="border-b border-border/30 hover:bg-success/5">
-                                                    <td className="py-2 text-success font-mono">${bid.price}</td>
+                                                    <td className="py-2 text-success font-mono">₹{bid.price}</td>
                                                     <td className="py-2 text-right font-mono">{bid.amount}</td>
-                                                    <td className="py-2 text-right font-mono">${bid.total}</td>
+                                                    <td className="py-2 text-right font-mono">₹{bid.total}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -321,9 +321,9 @@ export default function CryptoTrading() {
                                         <tbody>
                                             {orderBook.asks.map((ask, i) => (
                                                 <tr key={i} className="border-b border-border/30 hover:bg-destructive/5">
-                                                    <td className="py-2 text-destructive font-mono">${ask.price}</td>
+                                                    <td className="py-2 text-destructive font-mono">₹{ask.price}</td>
                                                     <td className="py-2 text-right font-mono">{ask.amount}</td>
-                                                    <td className="py-2 text-right font-mono">${ask.total}</td>
+                                                    <td className="py-2 text-right font-mono">₹{ask.total}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -421,15 +421,15 @@ export default function CryptoTrading() {
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-muted-foreground">Price</span>
-                                    <span className="font-medium">${crypto.price.toLocaleString()}</span>
+                                    <span className="font-medium">₹{crypto.price.toLocaleString()}</span>
                                 </div>
                                 <div className="flex justify-between text-sm pt-2 border-t border-border">
                                     <span className="text-muted-foreground">Total</span>
-                                    <span className="font-bold">${totalCost.toLocaleString()}</span>
+                                    <span className="font-bold">₹{totalCost.toLocaleString()}</span>
                                 </div>
                                 <div className="flex justify-between text-xs text-muted-foreground">
                                     <span>Fee (0.1%)</span>
-                                    <span>${(totalCost * 0.001).toFixed(2)}</span>
+                                    <span>₹{(totalCost * 0.001).toFixed(2)}</span>
                                 </div>
                             </div>
 
