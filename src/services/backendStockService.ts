@@ -49,7 +49,7 @@ const backendStockService = {
                 dividend: data.dividend?.toFixed(2) || '0.00',
                 high52w: data.high52w?.toFixed(2) || 'N/A',
                 low52w: data.low52w?.toFixed(2) || 'N/A',
-                avgVolume: 'N/A',
+                avgVolume: data.volume ? `${(data.volume / 1000000).toFixed(2)}M` : 'N/A',
                 sma50: 'N/A',
                 sma200: 'N/A',
                 candles: { s: 'no_data', t: [], c: [], o: [], h: [], l: [], v: [] },
