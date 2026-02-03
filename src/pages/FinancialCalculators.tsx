@@ -9,7 +9,7 @@ import {
   Calendar,
   PiggyBank,
 } from "lucide-react";
-import { FaRupeeSign } from "react-icons/fa";
+
 import { DashboardLayout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -25,11 +25,16 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-/* ---------- Reusable Rupee Input Wrapper ---------- */
+/* ---------- Rupee Icon (No external libs) ---------- */
+function RupeeIcon({ className }: any) {
+  return <span className={className + " font-bold"}>₹</span>;
+}
+
+/* ---------- Reusable Rupee Input ---------- */
 function RupeeInput({ value, onChange, id }: any) {
   return (
     <div className="relative">
-      <FaRupeeSign className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      <RupeeIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
       <Input
         id={id}
         type="number"
@@ -41,7 +46,7 @@ function RupeeInput({ value, onChange, id }: any) {
   );
 }
 
-/* ---------- Loan Calculator ---------- */
+/* ---------- Loan / EMI Calculator ---------- */
 function LoanCalculator() {
   const [amount, setAmount] = useState(500000);
   const [rate, setRate] = useState(10);
