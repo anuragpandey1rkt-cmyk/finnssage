@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import {
   TrendingUp,
   Wallet,
@@ -19,7 +19,8 @@ import {
   IndianRupee,
   Target,
   Palmtree,
-  Calculator
+  Calculator,
+  Bot
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -47,26 +48,126 @@ import { parseCSVAsync, parsePDFAsync, parseExcelAsync } from "@/lib/statementPa
 
 // Milestones will be calculated dynamically based on financials
 
-// Insights will be generated dynamically based on real data
-// For now, we start with empty or simple rule-based insights
-const generateInsights = (financialData: any) => {
+// Enhanced AI Insights Generation based on real transaction data
+const generateInsights = (financialData: any, transactions: any[]) => {
   const insights = [];
 
-  if (financialData.monthlyExpenses > financialData.monthlyIncome * 0.8) {
+  // Analyze spending vs income
+  if (financialData.monthlyIncome > 0) {
+    const spendingRatio = financialData.monthlyExpenses / financialData.monthlyIncome;
+
+    if (spendingRatio > 0.9) {
+      insights.push({
+        type: "warning",
+        title: "Critical Spending Alert",
+        description: `You're spending ${Math.round(spendingRatio * 100)}% of your income. Consider reducing expenses.`,
+        icon: AlertTriangle
+      });
+    } else if (spendingRatio > 0.8) {
+      insights.push({
+        type: "warning",
+        title: "High Spending Detected",
+        description: `Expenses are ${Math.round(spendingRatio * 100)}% of income. Aim for under 80%.`,
+        icon: AlertTriangle
+      });
+    }
+  }
+
+  // Analyze savings rate
+  if (financialData.savingsRate > 30) {
     insights.push({
-      type: "warning",
-      title: "High Spending",
-      description: "Expenses are over 80% of income.",
-      icon: AlertTriangle
+      type: "success",
+      title: "Excellent Savings Rate",
+      description: `You're saving ${financialData.savingsRate}% of your income! Keep it up!`,
+      icon: CheckCircle2
+    });
+  } else if (financialData.savingsRate > 20) {
+    insights.push({
+      type: "success",
+      title: "Good Savings Habit",
+      description: `${financialData.savingsRate}% savings rate is healthy. Try to reach 30%.`,
+      icon: CheckCircle2
+    });
+  } else if (financialData.savingsRate > 0) {
+    insights.push({
+      type: "info",
+      title: "Improve Savings",
+      description: `Current savings rate: ${financialData.savingsRate}%. Aim for at least 20%.`,
+      icon: Sparkles
     });
   }
 
-  if (financialData.savingsRate > 20) {
+  // Analyze transaction patterns if we have data
+  if (transactions.length > 0) {
+    // Calculate category spending
+    const categorySpending: { [key: string]: number } = {};
+    const expenseTransactions = transactions.filter(t => t.type === 'expense');
+
+    expenseTransactions.forEach(t => {
+      const category = t.category || 'Uncategorized';
+      categorySpending[category] = (categorySpending[category] || 0) + Math.abs(t.amount);
+    });
+
+    // Find top spending category
+    const sortedCategories = Object.entries(categorySpending)
+      .sort(([, a], [, b]) => b - a);
+
+    if (sortedCategories.length > 0) {
+      const [topCategory, topAmount] = sortedCategories[0];
+      const totalExpenses = Object.values(categorySpending).reduce((a, b) => a + b, 0);
+      const categoryPercent = totalExpenses > 0 ? Math.round((topAmount / totalExpenses) * 100) : 0;
+
+      if (categoryPercent > 30) {
+        insights.push({
+          type: "info",
+          title: `${topCategory} Dominates Spending`,
+          description: `${categoryPercent}% of expenses go to ${topCategory}. Review for optimization.`,
+          icon: Sparkles
+        });
+      }
+    }
+
+    // Analyze recent transaction frequency
+    const recentTransactions = transactions.filter(t => {
+      const txDate = new Date(t.date);
+      const daysSince = (Date.now() - txDate.getTime()) / (1000 * 60 * 60 * 24);
+      return daysSince <= 7;
+    });
+
+    if (recentTransactions.length > 20) {
+      insights.push({
+        type: "info",
+        title: "High Transaction Activity",
+        description: `${recentTransactions.length} transactions in the last 7 days. Track your spending closely.`,
+        icon: Sparkles
+      });
+    }
+  }
+
+  // Net worth insights
+  if (financialData.netWorth > 10000000) {
     insights.push({
       type: "success",
-      title: "Good Savings",
-      description: "You are saving more than 20% of your income!",
+      title: "Wealth Milestone Achieved",
+      description: `Net worth of ₹${(financialData.netWorth / 10000000).toFixed(1)}Cr. Excellent progress!`,
       icon: CheckCircle2
+    });
+  } else if (financialData.netWorth > 1000000) {
+    insights.push({
+      type: "success",
+      title: "Building Wealth",
+      description: `Net worth: ₹${(financialData.netWorth / 100000).toFixed(1)}L. Keep investing!`,
+      icon: CheckCircle2
+    });
+  }
+
+  // If no insights generated, add a default encouraging message
+  if (insights.length === 0) {
+    insights.push({
+      type: "info",
+      title: "Start Your Financial Journey",
+      description: "Upload your bank statement to get personalized AI insights!",
+      icon: Sparkles
     });
   }
 
@@ -89,8 +190,8 @@ export default function Dashboard() {
     refreshTransactions
   } = useFinancial();
 
-  // Generate insights based on real data
-  const insights = useMemo(() => generateInsights(financialData), [financialData]);
+  // Generate insights based on real data and transactions
+  const insights = useMemo(() => generateInsights(financialData, transactions), [financialData, transactions]);
 
   const [salaryInput, setSalaryInput] = useState(financialData.annualIncome?.toString() || "");
   const [expenseInput, setExpenseInput] = useState(financialData.monthlyExpenses?.toString() || "");
@@ -101,25 +202,32 @@ export default function Dashboard() {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Track previous values to detect changes and create transactions
+  const [prevAnnualIncome, setPrevAnnualIncome] = useState<number | null>(null);
+  const [prevMonthlyExpenses, setPrevMonthlyExpenses] = useState<number | null>(null);
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const fileName = file.name.toLowerCase();
-    const isCSV = fileName.endsWith(".csv");
-    const isPDF = fileName.endsWith(".pdf");
-    const isExcel = fileName.endsWith(".xlsx") || fileName.endsWith(".xls");
+    const name = file.name.toLowerCase();
+    const isCSV = name.endsWith(".csv");
+    const isExcel = name.endsWith(".xlsx") || name.endsWith(".xls");
+    const isPDF = name.endsWith(".pdf");
 
-    if (!isCSV && !isPDF && !isExcel) {
+    if (!isCSV && !isExcel && !isPDF) {
       toast({
         title: "Invalid file format",
-        description: "Please upload an Excel (.xlsx, .xls), CSV, or PDF bank statement.",
+        description: "Please upload an Excel, CSV, or PDF bank statement.",
         variant: "destructive",
       });
       return;
     }
 
     setIsUploading(true);
+    // Redirect immediately to spending tab
+    navigate('/spending');
+
     const reader = new FileReader();
 
     reader.onload = async (event) => {
@@ -127,23 +235,19 @@ export default function Dashboard() {
         const content = event.target?.result;
         if (!content) return;
 
-        let parsedTransactions;
-        let sourceType: "csv_upload" | "pdf_upload" | "excel_upload";
+        let parsedTransactions: any[] = [];
 
         if (isCSV) {
           parsedTransactions = await parseCSVAsync(content as string);
-          sourceType = "csv_upload";
         } else if (isExcel) {
           parsedTransactions = await parseExcelAsync(content as ArrayBuffer);
-          sourceType = "excel_upload";
         } else {
           // PDF parsing using Gemini AI
           parsedTransactions = await parsePDFAsync(content as ArrayBuffer);
-          sourceType = "pdf_upload";
         }
 
         if (parsedTransactions.length === 0) {
-          throw new Error("No transactions found in the statement. Please check the file format.");
+          throw new Error("No transactions found in the statement.");
         }
 
         const transactionsToSave = parsedTransactions.map((t) => ({
@@ -159,15 +263,15 @@ export default function Dashboard() {
         await refreshTransactions();
 
         toast({
-          title: "Statement Analyzed!",
-          description: `Successfully extracted ${transactionsToSave.length} transactions from your bank statement.`,
+          title: "Statement Imported",
+          description: `Successfully added ${transactionsToSave.length} transactions.`,
         });
 
       } catch (err) {
         console.error("Upload Error:", err);
         toast({
-          title: "Analysis Failed",
-          description: err instanceof Error ? err.message : "Failed to analyze statement.",
+          title: "Import Failed",
+          description: err instanceof Error ? err.message : "Failed to import statement.",
           variant: "destructive",
         });
       } finally {
@@ -183,7 +287,7 @@ export default function Dashboard() {
     }
   };
 
-  // Debounced update to backend
+  // Debounced update to backend and create transactions
   useEffect(() => {
     const timer = setTimeout(async () => {
       let annualAmount: number | undefined;
@@ -209,28 +313,68 @@ export default function Dashboard() {
 
       if (annualAmount !== undefined || monthlyAmount !== undefined) {
         setIsSyncing(true);
-        if (annualAmount !== undefined && annualAmount !== financialData.annualIncome) {
+
+        // Update income and create transaction if changed
+        if (annualAmount !== undefined && annualAmount !== financialData.annualIncome && annualAmount > 0) {
           await setAnnualIncome(annualAmount);
+
+          // Create income transaction only if this is a new/changed value
+          if (prevAnnualIncome !== null && prevAnnualIncome !== annualAmount) {
+            const monthlyIncome = Math.round(annualAmount / 12);
+            await addTransactions([{
+              date: new Date().toISOString(),
+              description: "Salary Income",
+              amount: monthlyIncome,
+              category: "Income",
+              type: "income",
+              source: "manual"
+            }]);
+          }
+          setPrevAnnualIncome(annualAmount);
         }
-        if (monthlyAmount !== undefined && monthlyAmount !== financialData.monthlyExpenses) {
+
+        // Update expenses and create transaction if changed
+        if (monthlyAmount !== undefined && monthlyAmount !== financialData.monthlyExpenses && monthlyAmount > 0) {
           await setMonthlyExpenses(monthlyAmount);
+
+          // Create expense transaction only if this is a new/changed value
+          if (prevMonthlyExpenses !== null && prevMonthlyExpenses !== monthlyAmount) {
+            await addTransactions([{
+              date: new Date().toISOString(),
+              description: "Monthly Expenses",
+              amount: monthlyAmount,
+              category: "Expenses",
+              type: "expense",
+              source: "manual"
+            }]);
+          }
+          setPrevMonthlyExpenses(monthlyAmount);
         }
+
         setIsSyncing(false);
       }
     }, 1000); // 1 second debounce
 
     return () => clearTimeout(timer);
-  }, [salaryInput, expenseInput, incomeMode, expenseMode, financialData.annualIncome, financialData.monthlyExpenses, setAnnualIncome, setMonthlyExpenses]);
+  }, [salaryInput, expenseInput, incomeMode, expenseMode, financialData.annualIncome, financialData.monthlyExpenses, setAnnualIncome, setMonthlyExpenses, addTransactions, prevAnnualIncome, prevMonthlyExpenses]);
 
   // Sync local state with context when context updates from elsewhere (like upload)
   useEffect(() => {
     if (financialData.annualIncome !== undefined) {
       setSalaryInput(prev => prev === "" && financialData.annualIncome !== 0 ? financialData.annualIncome.toString() : prev);
+      // Initialize previous income on first load
+      if (prevAnnualIncome === null && financialData.annualIncome > 0) {
+        setPrevAnnualIncome(financialData.annualIncome);
+      }
     }
     if (financialData.monthlyExpenses !== undefined) {
       setExpenseInput(prev => prev === "" && financialData.monthlyExpenses !== 0 ? financialData.monthlyExpenses.toString() : prev);
+      // Initialize previous expenses on first load
+      if (prevMonthlyExpenses === null && financialData.monthlyExpenses > 0) {
+        setPrevMonthlyExpenses(financialData.monthlyExpenses);
+      }
     }
-  }, [financialData.annualIncome, financialData.monthlyExpenses]);
+  }, [financialData.annualIncome, financialData.monthlyExpenses, prevAnnualIncome, prevMonthlyExpenses]);
 
   // Derive real-time financials for the UI
   const financials = useMemo(() => {
@@ -250,48 +394,71 @@ export default function Dashboard() {
     };
   }, [salaryInput, expenseInput, incomeMode, expenseMode, financialData.netWorth]);
 
-  // Generate chart data from real transactions or use calculated data
+  // Generate chart data from real transactions with accurate monthly aggregation
   const chartData = useMemo(() => {
     if (transactions.length > 0) {
-      // Group transactions by month
-      const monthlyData: { [key: string]: { income: number; expenses: number } } = {};
+      // Create a map to store monthly data with year-month key
+      const monthlyDataMap: { [key: string]: { income: number; expenses: number; date: Date } } = {};
 
       transactions.forEach((t) => {
         const date = new Date(t.date);
-        const monthKey = date.toLocaleDateString("en-US", { month: "short" });
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        // Create a unique key for year-month combination
+        const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
 
-        if (!monthlyData[monthKey]) {
-          monthlyData[monthKey] = { income: 0, expenses: 0 };
+        if (!monthlyDataMap[monthKey]) {
+          monthlyDataMap[monthKey] = {
+            income: 0,
+            expenses: 0,
+            date: new Date(year, month, 1) // First day of the month for sorting
+          };
         }
 
         if (t.type === "income") {
-          monthlyData[monthKey].income += Math.abs(t.amount);
+          monthlyDataMap[monthKey].income += Math.abs(t.amount);
         } else {
-          monthlyData[monthKey].expenses += Math.abs(t.amount);
+          monthlyDataMap[monthKey].expenses += Math.abs(t.amount);
         }
       });
 
-      return Object.entries(monthlyData)
-        .slice(-6)
-        .map(([name, data]) => ({
-          name,
-          income: data.income,
-          expenses: data.expenses,
-        }));
+      // Convert to array and sort by date
+      const sortedMonthlyData = Object.entries(monthlyDataMap)
+        .map(([key, data]) => ({
+          key,
+          ...data
+        }))
+        .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+      // Get last 6 months
+      const last6Months = sortedMonthlyData.slice(-6);
+
+      // Format for chart display
+      return last6Months.map(item => ({
+        name: item.date.toLocaleDateString("en-US", { month: "short" }),
+        income: item.income,
+        expenses: item.expenses,
+      }));
     }
 
-    // Fallback to calculated data based on income
+    // Fallback: Show user's entered income/expenses for current month only
     const monthlyIncome = financials.income;
     const monthlyExpenses = financials.expenses;
 
-    return [
-      { name: "Jan", expenses: monthlyExpenses * 0.9, income: monthlyIncome },
-      { name: "Feb", expenses: monthlyExpenses * 1.1, income: monthlyIncome },
-      { name: "Mar", expenses: monthlyExpenses * 0.95, income: monthlyIncome },
-      { name: "Apr", expenses: monthlyExpenses * 0.85, income: monthlyIncome },
-      { name: "May", expenses: monthlyExpenses * 1.05, income: monthlyIncome },
-      { name: "Jun", expenses: monthlyExpenses, income: monthlyIncome },
-    ];
+    // If user has entered data, show it for the current month
+    if (monthlyIncome > 0 || monthlyExpenses > 0) {
+      const currentMonth = new Date().toLocaleDateString("en-US", { month: "short" });
+      return [
+        {
+          name: currentMonth,
+          expenses: monthlyExpenses,
+          income: monthlyIncome
+        }
+      ];
+    }
+
+    // No data at all - show empty state
+    return [];
   }, [transactions, financials.income, financials.expenses]);
 
   return (
@@ -458,8 +625,18 @@ export default function Dashboard() {
 
         {/* Account Balances & Health & Charts */}
         <div className="grid gap-6 md:grid-cols-3">
-          {/* Account Balances - Replicating the screenshot */}
+          {/* Left Column: Health Meter */}
+          <div className="space-y-6">
+            <FinancialHealthMeter
+              income={financials.income}
+              expenses={financials.expenses}
+              savings={financials.savings}
+            />
+          </div>
+
+          {/* Right Column: Balances, Milestones & Insights */}
           <div className="md:col-span-2 space-y-6">
+            {/* Account Balances */}
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -492,91 +669,128 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            {/* Smart Milestones (Horizontal Scroll) */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-lg">Smart Milestones</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
-                {/* Sample Milestone - Emergency Fund */}
-                <Card className="bg-card border-border/50">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
-                          <ShieldCheck className="w-5 h-5" />
+            {/* Split Grid: Milestones & Insights */}
+            <div className="grid md:grid-cols-2 gap-6 items-start">
+
+              {/* Smart Milestones */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg">Smart Milestones</h3>
+                <div className="grid grid-cols-1 gap-4">
+                  {/* Sample Milestone - Emergency Fund */}
+                  <Card className="bg-card border-border/50">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+                            <ShieldCheck className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-sm">Emergency Fund</p>
+                            <p className="text-xs text-muted-foreground">6 Months of Safety</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-semibold text-sm">Emergency Fund</p>
-                          <p className="text-xs text-muted-foreground">6 Months of Safety</p>
-                        </div>
+                        <Badge variant="secondary" className="text-xs bg-blue-500/10 text-blue-500 hover:bg-blue-500/20">75%</Badge>
                       </div>
-                      <Badge variant="secondary" className="text-xs bg-blue-500/10 text-blue-500 hover:bg-blue-500/20">75%</Badge>
-                    </div>
-                    <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-500 w-[75%]" />
-                    </div>
-                    <div className="flex justify-between text-xs font-medium">
-                      <span>{format(financials.expenses * 4.5)}</span>
-                      <span className="text-muted-foreground">Target: {format(financials.expenses * 6)}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-                {/* Sample Milestone - Wealth */}
-                <Card className="bg-card border-border/50">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
-                          <Gem className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-sm">The First Crore</p>
-                          <p className="text-xs text-muted-foreground">Wealth Milestone</p>
-                        </div>
+                      <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 w-[75%]" />
                       </div>
-                      <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20">24%</Badge>
-                    </div>
-                    <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 w-[24%]" />
-                    </div>
-                    <div className="flex justify-between text-xs font-medium">
-                      <span>{format(2400000)}</span>
-                      <span className="text-muted-foreground">Target: {format(10000000)}</span>
-                    </div>
-                  </CardContent>
-                </Card>
+                      <div className="flex justify-between text-xs font-medium">
+                        <span>{format(financials.expenses * 4.5)}</span>
+                        <span className="text-muted-foreground">Target: {format(financials.expenses * 6)}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  {/* Sample Milestone - Wealth */}
+                  <Card className="bg-card border-border/50">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+                            <Gem className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-sm">The First Crore</p>
+                            <p className="text-xs text-muted-foreground">Wealth Milestone</p>
+                          </div>
+                        </div>
+                        <Badge variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20">24%</Badge>
+                      </div>
+                      <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500 w-[24%]" />
+                      </div>
+                      <div className="flex justify-between text-xs font-medium">
+                        <span>{format(2400000)}</span>
+                        <span className="text-muted-foreground">Target: {format(10000000)}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Right Column: Health Meter & Insights */}
-          <div className="space-y-6">
-            <FinancialHealthMeter
-              income={financials.income}
-              expenses={financials.expenses}
-              savings={financials.savings}
-            />
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-purple-500" />
+              {/* AI Insights */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-purple-500 animate-pulse" />
                   AI Insights
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {insights.map((insight, index) => (
-                  <div key={index} className={`p-3 rounded-lg border-l-2 bg-secondary/10 ${insight.type === "warning" ? "border-warning" : insight.type === "success" ? "border-success" : "border-info"}`}>
-                    <div className="flex items-start gap-3">
-                      <insight.icon className={`w-4 h-4 mt-0.5 ${insight.type === "warning" ? "text-warning" : insight.type === "success" ? "text-success" : "text-info"}`} />
-                      <div>
-                        <p className="text-xs font-semibold">{insight.title}</p>
-                        <p className="text-[10px] text-muted-foreground leading-tight mt-1">{insight.description}</p>
+                </h3>
+                <Card className="h-full border-purple-500/20 bg-gradient-to-br from-purple-500/5 to-transparent">
+                  <CardContent className="space-y-3 pt-6">
+                    {insights.length === 0 ? (
+                      <div className="text-center py-8">
+                        <Sparkles className="w-12 h-12 text-purple-500/30 mx-auto mb-3" />
+                        <p className="text-sm text-muted-foreground">
+                          Upload transactions to get AI-powered insights
+                        </p>
                       </div>
+                    ) : (
+                      insights.map((insight, index) => (
+                        <div
+                          key={index}
+                          className={`p-4 rounded-lg border-l-4 transition-all hover:shadow-md ${insight.type === "warning"
+                            ? "border-orange-500 bg-orange-500/5 hover:bg-orange-500/10"
+                            : insight.type === "success"
+                              ? "border-emerald-500 bg-emerald-500/5 hover:bg-emerald-500/10"
+                              : "border-purple-500 bg-purple-500/5 hover:bg-purple-500/10"
+                            }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <insight.icon className={`w-5 h-5 mt-0.5 flex-shrink-0 ${insight.type === "warning"
+                              ? "text-orange-500"
+                              : insight.type === "success"
+                                ? "text-emerald-500"
+                                : "text-purple-500"
+                              }`} />
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold mb-1">{insight.title}</p>
+                              <p className="text-xs text-muted-foreground leading-relaxed">{insight.description}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* AI Console Button */}
+                <Button
+                  onClick={() => navigate('/ai-console')}
+                  className="w-full bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 group"
+                  size="lg"
+                >
+                  <div className="flex items-center gap-3 w-full">
+                    <div className="p-2 bg-white/20 rounded-lg group-hover:bg-white/30 transition-colors">
+                      <Bot className="w-5 h-5" />
                     </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-semibold text-sm">Your Personal AI Financer</p>
+                      <p className="text-xs text-purple-100 opacity-90">One stop solution to all financial decisions</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   </div>
-                ))}
-              </CardContent>
-            </Card>
+                </Button>
+              </div>
+
+            </div>
           </div>
         </div>
 

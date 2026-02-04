@@ -72,7 +72,7 @@ export default function Investments() {
               <div>
                 <p className="text-sm font-medium">Investment Suggestions Only</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  All suggestions are for informational purposes. User approval is required before any transactions. 
+                  All suggestions are for informational purposes. User approval is required before any transactions.
                   Past performance does not guarantee future results.
                 </p>
               </div>
@@ -87,7 +87,7 @@ export default function Investments() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Portfolio</p>
-                  <p className="text-2xl font-bold">${totalValue.toLocaleString()}</p>
+                  <p className="text-2xl font-bold">₹{totalValue.toLocaleString()}</p>
                 </div>
                 <Wallet className="w-8 h-8 text-success" />
               </div>
@@ -103,7 +103,7 @@ export default function Investments() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Today's Change</p>
-                  <p className="text-2xl font-bold text-success">+$1,234</p>
+                  <p className="text-2xl font-bold text-success">+₹1,234</p>
                 </div>
                 <TrendingUp className="w-8 h-8 text-success" />
               </div>
@@ -124,9 +124,8 @@ export default function Investments() {
                 {[1, 2, 3, 4, 5].map((level) => (
                   <div
                     key={level}
-                    className={`h-2 flex-1 rounded ${
-                      level <= 3 ? "bg-warning" : "bg-secondary"
-                    }`}
+                    className={`h-2 flex-1 rounded ${level <= 3 ? "bg-warning" : "bg-secondary"
+                      }`}
                   />
                 ))}
               </div>
@@ -142,7 +141,7 @@ export default function Investments() {
                 </div>
                 <BarChart3 className="w-8 h-8 text-primary" />
               </div>
-              <p className="text-xs text-muted-foreground mt-2">$4,560/year estimated</p>
+              <p className="text-xs text-muted-foreground mt-2">₹4,560/year estimated</p>
             </CardContent>
           </Card>
         </div>
@@ -170,7 +169,7 @@ export default function Investments() {
                         <span className="font-medium">{asset.name}</span>
                       </div>
                       <div className="text-right">
-                        <span className="font-semibold">${asset.amount.toLocaleString()}</span>
+                        <span className="font-semibold">₹{asset.amount.toLocaleString()}</span>
                         <span className="text-sm text-muted-foreground ml-2">{asset.value}%</span>
                       </div>
                     </div>
@@ -202,9 +201,8 @@ export default function Investments() {
                 {rebalancingSuggestions.map((suggestion, index) => (
                   <div
                     key={index}
-                    className={`p-4 rounded-lg border-l-4 ${
-                      suggestion.type === "warning" ? "card-warning" : "bg-info/10 border-info"
-                    }`}
+                    className={`p-4 rounded-lg border-l-4 ${suggestion.type === "warning" ? "card-warning" : "bg-info/10 border-info"
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
@@ -214,14 +212,14 @@ export default function Investments() {
                         <span className="font-medium">{suggestion.asset}</span>
                       </div>
                       <span className="font-semibold">
-                        ${suggestion.amount.toLocaleString()}
+                        ₹{suggestion.amount.toLocaleString()}
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">{suggestion.reason}</p>
                   </div>
                 ))}
               </div>
-              
+
               <div className="mt-6 flex gap-3">
                 <Button className="flex-1">
                   Review All Changes
@@ -230,7 +228,7 @@ export default function Investments() {
                   Dismiss
                 </Button>
               </div>
-              
+
               <p className="text-xs text-muted-foreground text-center mt-4">
                 Requires your explicit approval before execution
               </p>
@@ -269,7 +267,7 @@ export default function Investments() {
                       </td>
                       <td className="py-4 text-muted-foreground">{holding.name}</td>
                       <td className="py-4 text-right">{holding.shares}</td>
-                      <td className="py-4 text-right">${holding.price.toFixed(2)}</td>
+                      <td className="py-4 text-right">₹{holding.price.toFixed(2)}</td>
                       <td className="py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
                           {holding.change > 0 ? (
@@ -283,7 +281,7 @@ export default function Investments() {
                         </div>
                       </td>
                       <td className="py-4 text-right font-semibold">
-                        ${holding.value.toLocaleString()}
+                        ₹{holding.value.toLocaleString()}
                       </td>
                     </tr>
                   ))}
