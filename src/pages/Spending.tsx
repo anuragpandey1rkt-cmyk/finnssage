@@ -1,11 +1,11 @@
+import { useState, useEffect } from "react";
 import {
-  PieChart,
   TrendingDown,
   TrendingUp,
   ArrowUpRight,
   Filter,
   Download,
-  Calendar,
+  Calendar as CalendarIcon,
   ShoppingBag,
   Car,
   Home,
@@ -14,57 +14,164 @@ import {
   Zap,
   Heart,
   MoreHorizontal,
+  Loader2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { supabase, type Transaction } from "@/lib/supabase";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
 
-const categories = [
-  { name: "Shopping", amount: 1245, percent: 28, icon: ShoppingBag, color: "bg-primary" },
-  { name: "Food & Dining", amount: 892, percent: 20, icon: Utensils, color: "bg-warning" },
-  { name: "Transportation", amount: 534, percent: 12, icon: Car, color: "bg-info" },
-  { name: "Rent & Utilities", amount: 2100, percent: 47, icon: Home, color: "bg-destructive" },
-  { name: "Entertainment", amount: 320, percent: 7, icon: Film, color: "bg-purple-500" },
-  { name: "Subscriptions", amount: 156, percent: 3, icon: Zap, color: "bg-success" },
-];
-
-const monthlyComparison = [
-  { month: "Oct", spending: 4200 },
-  { month: "Nov", spending: 4890 },
-  { month: "Dec", spending: 5650 },
-  { month: "Jan", spending: 4447, current: true },
-];
-
-const topMerchants = [
-  { name: "Amazon", category: "Shopping", amount: 456.78, transactions: 12 },
-  { name: "Uber", category: "Transportation", amount: 234.50, transactions: 23 },
-  { name: "Whole Foods", category: "Groceries", amount: 312.45, transactions: 8 },
-  { name: "Netflix", category: "Entertainment", amount: 15.99, transactions: 1 },
-  { name: "Spotify", category: "Entertainment", amount: 10.99, transactions: 1 },
-  { name: "Starbucks", category: "Food & Dining", amount: 89.45, transactions: 18 },
-];
-
-const insights = [
-  {
-    type: "warning",
-    title: "Dining spending up 40%",
-    description: "You've spent ₹892 on dining this month, which is 40% higher than your 3-month average of ₹637.",
-  },
-  {
-    type: "success",
-    title: "Subscription savings found",
-    description: "You have 3 streaming services. Consider bundling or choosing one to save ₹20/month.",
-  },
-  {
-    type: "info",
-    title: "Peak spending detected",
-    description: "Most of your spending happens on weekends. Consider setting a weekend budget.",
-  },
-];
+// Map text categories to icons and colors
+const getCategoryConfig = (category: string) => {
+  const normalized = category.toLowerCase();
+  if (normalized.includes("shop") || normalized.includes("amazon")) return { icon: ShoppingBag, color: "#6366f1", bg: "bg-primary" };
+  if (normalized.includes("food") || normalized.includes("dining") || normalized.includes("restau")) return { icon: Utensils, color: "#f59e0b", bg: "bg-warning" };
+  if (normalized.includes("transport") || normalized.includes("uber") || normalized.includes("fuel")) return { icon: Car, color: "#3b82f6", bg: "bg-info" };
+  if (normalized.includes("rent") || normalized.includes("util") || normalized.includes("bill")) return { icon: Home, color: "#ef4444", bg: "bg-destructive" };
+  if (normalized.includes("entertain") || normalized.includes("movie") || normalized.includes("netflix")) return { icon: Film, color: "#a855f7", bg: "bg-purple-500" };
+  if (normalized.includes("subscript") || normalized.includes("spotify")) return { icon: Zap, color: "#10b981", bg: "bg-success" };
+  return { icon: Heart, color: "#64748b", bg: "bg-secondary" };
+};
 
 export default function Spending() {
-  const totalSpending = categories.reduce((sum, c) => sum + c.amount, 0);
+  const [loading, setLoading] = useState(true);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [totalSpending, setTotalSpending] = useState(0);
+  const [categoryData, setCategoryData] = useState<any[]>([]);
+  const [monthlyData, setMonthlyData] = useState<any[]>([]);
+  const [topMerchants, setTopMerchants] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch only expenses
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('type', 'expense')
+        .order('date', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        setTransactions(data);
+        processAnalytics(data);
+      }
+    } catch (error) {
+      console.error("Error fetching spending data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const processAnalytics = (data: Transaction[]) => {
+    // 1. Total Spending
+    const total = data.reduce((sum, t) => sum + Number(t.amount), 0);
+    setTotalSpending(total);
+
+    // 2. Category Breakdown
+    const categoryMap = new Map();
+    data.forEach(t => {
+      const current = categoryMap.get(t.category) || 0;
+      categoryMap.set(t.category, current + Number(t.amount));
+    });
+
+    const categories = Array.from(categoryMap.entries())
+      .map(([name, amount]) => {
+        const config = getCategoryConfig(name);
+        return {
+          name,
+          amount,
+          percent: Math.round((amount / total) * 100),
+          ...config
+        };
+      })
+      .sort((a, b) => b.amount - a.amount);
+
+    setCategoryData(categories);
+
+    // 3. Monthly Comparison (Last 6 months)
+    const monthMap = new Map();
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    data.forEach(t => {
+      const date = new Date(t.date);
+      const key = `${months[date.getMonth()]} ${date.getFullYear()}`;
+      const current = monthMap.get(key) || 0;
+      monthMap.set(key, current + Number(t.amount));
+    });
+
+    // Create array for chart (mocking missing months for better visual if needed, but let's use real)
+    const monthlyList = Array.from(monthMap.entries())
+      .map(([month, spending]) => ({ month, spending }))
+      .reverse() // Oldest first
+      .slice(-6); // Last 6 months
+
+    if (monthlyList.length === 0) {
+      // Fallback if no data
+      setMonthlyData([
+        { month: "Jan", spending: 0 }
+      ]);
+    } else {
+      setMonthlyData(monthlyList);
+    }
+
+    // 4. Top Merchants
+    const merchantMap = new Map();
+    data.forEach(t => {
+      const current = merchantMap.get(t.description) || { amount: 0, count: 0, category: t.category };
+      merchantMap.set(t.description, {
+        amount: current.amount + Number(t.amount),
+        count: current.count + 1,
+        category: t.category
+      });
+    });
+
+    const merchants = Array.from(merchantMap.entries())
+      .map(([name, stats]) => ({
+        name,
+        category: stats.category,
+        amount: stats.amount,
+        transactions: stats.count
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5); // Top 5
+
+    setTopMerchants(merchants);
+  };
+
+  if (loading) {
+    return (
+      <DashboardLayout title="Spending Analytics" subtitle="Loading your financial data...">
+        <div className="flex items-center justify-center h-[60vh]">
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Calculate trends
+  const currentMonth = monthlyData[monthlyData.length - 1]?.spending || 0;
+  const lastMonth = monthlyData[monthlyData.length - 2]?.spending || 0; // simplistic prev month
+  const trendPercent = lastMonth > 0 ? Math.round(((currentMonth - lastMonth) / lastMonth) * 100) : 0;
 
   return (
     <DashboardLayout title="Spending Analytics" subtitle="Track and analyze your spending patterns">
@@ -73,8 +180,8 @@ export default function Spending() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="gap-2">
-              <Calendar className="w-4 h-4" />
-              January 2024
+              <CalendarIcon className="w-4 h-4" />
+              This Month
             </Button>
             <Button variant="outline" size="sm" className="gap-2">
               <Filter className="w-4 h-4" />
@@ -89,17 +196,21 @@ export default function Spending() {
 
         {/* Summary Cards */}
         <div className="grid gap-4 md:grid-cols-4">
-          <Card className="card-warning">
+          <Card className={`${trendPercent > 0 ? 'card-warning' : 'card-success'}`}>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Spending</p>
                   <p className="text-2xl font-bold">₹{totalSpending.toLocaleString()}</p>
                 </div>
-                <TrendingDown className="w-8 h-8 text-warning" />
+                {trendPercent > 0 ? (
+                  <TrendingUp className="w-8 h-8 text-warning" />
+                ) : (
+                  <TrendingDown className="w-8 h-8 text-success" />
+                )}
               </div>
-              <Badge variant="warning" className="mt-2">
-                +12% vs last month
+              <Badge variant={trendPercent > 0 ? "warning" : "success"} className="mt-2">
+                {trendPercent > 0 ? "+" : ""}{trendPercent}% vs last month
               </Badge>
             </CardContent>
           </Card>
@@ -117,19 +228,23 @@ export default function Spending() {
             </CardContent>
           </Card>
 
-          <Card className="card-success">
+          <Card className="card-info">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Budget Used</p>
-                  <p className="text-2xl font-bold">74%</p>
+                  <p className="text-sm text-muted-foreground">Highest Category</p>
+                  <p className="text-lg font-bold truncate max-w-[120px]">
+                    {categoryData[0]?.name || "None"}
+                  </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-muted-foreground">of ₹6,000</p>
+                  <p className="text-xs text-muted-foreground">
+                    {categoryData[0]?.percent || 0}% of total
+                  </p>
                 </div>
               </div>
               <div className="mt-3 h-2 rounded-full bg-secondary overflow-hidden">
-                <div className="h-full bg-success rounded-full" style={{ width: "74%" }} />
+                <div className="h-full bg-info rounded-full" style={{ width: `${categoryData[0]?.percent || 0}%` }} />
               </div>
             </CardContent>
           </Card>
@@ -139,11 +254,11 @@ export default function Spending() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Transactions</p>
-                  <p className="text-2xl font-bold">127</p>
+                  <p className="text-2xl font-bold">{transactions.length}</p>
                 </div>
                 <ArrowUpRight className="w-8 h-8 text-muted-foreground" />
               </div>
-              <p className="text-xs text-muted-foreground mt-2">+8 from last month</p>
+              <p className="text-xs text-muted-foreground mt-2">Total tracked</p>
             </CardContent>
           </Card>
         </div>
@@ -151,22 +266,42 @@ export default function Spending() {
         {/* Category Breakdown & Monthly Comparison */}
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Category Breakdown */}
-          <Card>
+          <Card className="flex flex-col">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Category Breakdown</CardTitle>
-                <Button variant="ghost" size="sm">
-                  View Details
-                </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1">
+              {/* Chart Section */}
+              <div className="h-[200px] w-full mb-6">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={categoryData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="amount"
+                    >
+                      {categoryData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => [`₹${value.toLocaleString()}`, '']} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* List Section */}
               <div className="space-y-4">
-                {categories.map((category) => (
+                {categoryData.slice(0, 5).map((category) => (
                   <div key={category.name} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-lg ${category.color} flex items-center justify-center`}>
+                        <div className={`w-8 h-8 rounded-lg ${category.bg} flex items-center justify-center`}>
                           <category.icon className="w-4 h-4 text-primary-foreground" />
                         </div>
                         <span className="font-medium">{category.name}</span>
@@ -180,8 +315,8 @@ export default function Spending() {
                     </div>
                     <div className="h-2 rounded-full bg-secondary overflow-hidden">
                       <div
-                        className={`h-full ${category.color} rounded-full transition-all duration-500`}
-                        style={{ width: `${category.percent}%` }}
+                        className={`h-full rounded-full transition-all duration-500`}
+                        style={{ width: `${category.percent}%`, backgroundColor: category.color }}
                       />
                     </div>
                   </div>
@@ -191,79 +326,37 @@ export default function Spending() {
           </Card>
 
           {/* Monthly Comparison */}
-          <Card>
+          <Card className="flex flex-col">
             <CardHeader>
-              <CardTitle>Monthly Comparison</CardTitle>
+              <CardTitle>Monthly Trends</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="flex items-end justify-between h-48 gap-4 pb-4">
-                {monthlyComparison.map((month) => {
-                  const maxSpending = Math.max(...monthlyComparison.map(m => m.spending));
-                  const heightPercent = (month.spending / maxSpending) * 100;
-
-                  return (
-                    <div key={month.month} className="flex-1 flex flex-col items-center gap-2">
-                      <span className="text-sm font-semibold">₹{(month.spending / 1000).toFixed(1)}k</span>
-                      <div className="w-full bg-secondary rounded-t-lg overflow-hidden flex-1 relative">
-                        <div
-                          className={`absolute bottom-0 w-full rounded-t-lg transition-all duration-500 ${month.current
-                              ? "bg-gradient-to-t from-primary to-info"
-                              : "bg-muted-foreground/30"
-                            }`}
-                          style={{ height: `${heightPercent}%` }}
-                        />
-                      </div>
-                      <span className={`text-sm ${month.current ? "font-bold text-primary" : "text-muted-foreground"}`}>
-                        {month.month}
-                      </span>
-                    </div>
-                  );
-                })}
+            <CardContent className="flex-1">
+              <div className="h-[300px] w-full mt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyData} margin={{ top: 20, right: 0, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
+                    <Tooltip
+                      cursor={{ fill: 'hsl(var(--muted)/0.2)' }}
+                      contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px" }}
+                      formatter={(value: number) => [`₹${value.toLocaleString()}`, "Spending"]}
+                    />
+                    <Bar dataKey="spending" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={50} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Insights & Top Merchants */}
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Insights */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Spending Insights</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {insights.map((insight, index) => (
-                  <div
-                    key={index}
-                    className={`p-3 rounded-lg ${insight.type === "warning"
-                        ? "card-warning"
-                        : insight.type === "success"
-                          ? "card-success"
-                          : "bg-info/10 border-l-4 border-info"
-                      }`}
-                  >
-                    <p className="text-sm font-medium">{insight.title}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {insight.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Top Merchants */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Top Merchants</CardTitle>
-                <Button variant="ghost" size="sm">
-                  See All
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
+        {/* Top Merchants */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Merchants</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {topMerchants.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
@@ -282,7 +375,7 @@ export default function Spending() {
                         <td className="py-3">
                           <Badge variant="muted">{merchant.category}</Badge>
                         </td>
-                        <td className="py-3 text-right font-semibold">₹{merchant.amount.toFixed(2)}</td>
+                        <td className="py-3 text-right font-semibold">₹{merchant.amount.toLocaleString()}</td>
                         <td className="py-3 text-right text-muted-foreground">{merchant.transactions}</td>
                         <td className="py-3 text-right">
                           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -294,9 +387,13 @@ export default function Spending() {
                   </tbody>
                 </table>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            ) : (
+              <div className="text-center py-10 text-muted-foreground">
+                No transaction data found. Start spending to see analytics!
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );
