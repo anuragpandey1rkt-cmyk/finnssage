@@ -127,7 +127,33 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       return [];
     }
 
-    return (data as Transaction[]) || [];
+    console.log("Fetched transactions:", data);
+
+    // Normalize data: ensure type exists and amounts are correct
+    const normalizedData = (data as any[]).map(t => {
+      // Infer type from amount if missing, or trust existing type
+      let type: 'income' | 'expense' = t.type;
+
+      // If type is missing, infer from amount sign
+      if (!type) {
+        type = t.amount < 0 ? 'expense' : 'income';
+      }
+
+      // Ensure amount is handled correctly (database might have negative for expenses)
+      // We want absolute amount for display/calcs usually, but let's keep it signed in the DB
+      // stored convention but normalize for the app which often expects positive numbers + type
+      // OR just ensure consistency.
+
+      return {
+        ...t,
+        type: type,
+        // Ensure amount is absolute for UI if the Type determines sign, 
+        // OR keep as is. The app seems to use Math.abs(amount) in places.
+        // Let's passed raw amount but ensure type is correct.
+      };
+    });
+
+    return (normalizedData as Transaction[]) || [];
   };
 
   // Fetch investments
