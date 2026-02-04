@@ -44,7 +44,7 @@ import { CurrencyToggle } from "@/components/CurrencyToggle";
 import { FinancialHealthMeter } from "@/components/FinancialHealthMeter";
 import { QuickActions } from "@/components/QuickActions";
 import { useToast } from "@/hooks/use-toast";
-import { parseCSVAsync, parsePDFAsync } from "@/lib/statementParser";
+import { parseCSVAsync, parsePDFAsync, parseExcelAsync } from "@/lib/statementParser";
 
 // Milestones will be calculated dynamically based on financials
 
@@ -210,69 +210,80 @@ export default function Dashboard() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const isCSV = file.name.endsWith(".csv");
-    const isPDF = file.name.endsWith(".pdf");
+    const name = file.name.toLowerCase();
+    const isCSV = name.endsWith(".csv");
+    const isExcel = name.endsWith(".xlsx") || name.endsWith(".xls");
+    const isPDF = name.endsWith(".pdf");
 
-    if (!isCSV && !isPDF) {
+    if (!isCSV && !isExcel && !isPDF) {
       toast({
         title: "Invalid file format",
-        description: "Please upload a CSV or PDF bank statement.",
+        description: "Please upload an Excel, CSV, or PDF bank statement.",
         variant: "destructive",
       });
       return;
     }
 
     setIsUploading(true);
-
-    // Redirect immediately to spending tab as requested
+    // Redirect immediately to spending tab
     navigate('/spending');
-    // Note: The toast notifications below might not be visible if they are not global,
-    // but the analysis happens in the background.
 
-    try {
-      let parsedTransactions;
+    const reader = new FileReader();
 
-      if (isPDF) {
-        // Pass file directly to AI service wrapper
-        parsedTransactions = await parsePDFAsync(file);
-      } else {
-        // CSV needs reading as text
-        const text = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve(e.target?.result as string);
-          reader.onerror = (e) => reject(e);
-          reader.readAsText(file);
+    reader.onload = async (event) => {
+      try {
+        const content = event.target?.result;
+        if (!content) return;
+
+        let parsedTransactions: any[] = [];
+
+        if (isCSV) {
+          parsedTransactions = await parseCSVAsync(content as string);
+        } else if (isExcel) {
+          parsedTransactions = await parseExcelAsync(content as ArrayBuffer);
+        } else {
+          // PDF parsing using Gemini AI
+          parsedTransactions = await parsePDFAsync(content as ArrayBuffer);
+        }
+
+        if (parsedTransactions.length === 0) {
+          throw new Error("No transactions found in the statement.");
+        }
+
+        const transactionsToSave = parsedTransactions.map((t) => ({
+          date: t.date instanceof Date ? t.date.toISOString().split('T')[0] : t.date,
+          description: t.description,
+          amount: t.type === "expense" ? -Math.abs(t.amount) : Math.abs(t.amount),
+          category: t.category,
+          type: t.type,
+          source: "statement_upload" as const,
+        }));
+
+        await addTransactions(transactionsToSave);
+        await refreshTransactions();
+
+        toast({
+          title: "Statement Imported",
+          description: `Successfully added ${transactionsToSave.length} transactions.`,
         });
-        parsedTransactions = await parseCSVAsync(text);
+
+      } catch (err) {
+        console.error("Upload Error:", err);
+        toast({
+          title: "Import Failed",
+          description: err instanceof Error ? err.message : "Failed to import statement.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
       }
+    };
 
-      const transactionsToSave = parsedTransactions.map((t) => ({
-        date: t.date,
-        description: t.description,
-        amount: t.type === "expense" ? -t.amount : t.amount,
-        category: t.category,
-        type: t.type,
-        source: (isCSV ? "csv_upload" : "pdf_upload") as "csv_upload" | "pdf_upload",
-      }));
-
-      await addTransactions(transactionsToSave);
-      await refreshTransactions();
-
-      toast({
-        title: "Statement Analyzed!",
-        description: `Successfully extracted ${transactionsToSave.length} transactions using AI.`,
-      });
-
-    } catch (err) {
-      console.error("Upload Error:", err);
-      toast({
-        title: "Analysis Failed",
-        description: err instanceof Error ? err.message : "Failed to analyze statement.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+    if (isCSV) {
+      reader.readAsText(file);
+    } else {
+      reader.readAsArrayBuffer(file);
     }
   };
 
@@ -567,7 +578,7 @@ export default function Dashboard() {
                   type="file"
                   ref={fileInputRef}
                   className="hidden"
-                  accept=".csv,.pdf"
+                  accept=".csv,.pdf,.xlsx,.xls"
                   onChange={handleFileChange}
                 />
                 <Button

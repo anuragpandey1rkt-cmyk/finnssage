@@ -279,22 +279,59 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
     await refreshTransactions();
   };
 
-  // Add multiple transactions (bulk import)
+  // Add multiple transactions (bulk import) - using direct REST API to avoid client issues
   const addTransactions = async (txns: Omit<Transaction, "id" | "user_id" | "created_at">[]) => {
     if (!user || txns.length === 0) return;
 
+    // Get session for auth token
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      console.error("No active session - user not authenticated");
+      throw new Error("Please log in to upload statements");
+    }
+
+    console.log("User authenticated:", session.user.email);
+
     const transactionsWithUserId = txns.map((t) => ({
-      ...t,
       user_id: user.id,
+      amount: Number(t.amount) || 0,
+      type: t.type,
+      category: t.category || 'Other',
+      description: t.description || 'No description',
+      date: typeof t.date === 'string' ? t.date : new Date(t.date).toISOString().split('T')[0],
+      source: 'statement_upload',
     }));
 
-    const { error } = await supabase.from("transactions").insert(transactionsWithUserId);
+    console.log("Inserting", transactionsWithUserId.length, "transactions via REST API");
 
-    if (error) {
-      console.error("Error adding transactions:", error);
+    // Use direct REST API call instead of Supabase client
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    try {
+      const response = await fetch(`${supabaseUrl}/rest/v1/transactions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${session.access_token}`,
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify(transactionsWithUserId)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("REST API Error:", response.status, errorText);
+        throw new Error(`Failed to insert transactions: ${errorText}`);
+      }
+
+      console.log(`Successfully inserted ${transactionsWithUserId.length} transactions`);
+      await refreshTransactions();
+    } catch (error) {
+      console.error("Error inserting transactions:", error);
       throw error;
     }
-    await refreshTransactions();
   };
 
   // Add Investment

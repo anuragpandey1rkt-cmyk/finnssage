@@ -392,6 +392,59 @@ export default function Login() {
                 <Chrome className="w-4 h-4 mr-2" />
                 Continue with Google
               </Button>
+
+              {/* Instant Demo Access Button */}
+              <Button
+                variant="secondary"
+                className="w-full h-11 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white border-0"
+                onClick={async () => {
+                  setIsLoading(true);
+                  try {
+                    // Use demo credentials
+                    const demoEmail = "demo@finsage.app";
+                    const demoPassword = "demo123456";
+
+                    let { error } = await signIn(demoEmail, demoPassword);
+
+                    if (error) {
+                      // If demo account doesn't exist, create it
+                      const signUpResult = await signUp(demoEmail, demoPassword, "Demo User");
+                      if (signUpResult.error) {
+                        // Try signing in again (account might already exist)
+                        const retrySignIn = await signIn(demoEmail, demoPassword);
+                        if (retrySignIn.error) {
+                          toast({
+                            title: "Demo access failed",
+                            description: "Please try email login instead",
+                            variant: "destructive",
+                          });
+                          setIsLoading(false);
+                          return;
+                        }
+                      }
+                    }
+
+                    toast({
+                      title: "Welcome to FinSage!",
+                      description: "Accessing demo account...",
+                    });
+                    navigate("/");
+                  } catch (err) {
+                    toast({
+                      title: "Error",
+                      description: "Demo access unavailable. Please try email login.",
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }}
+                disabled={isLoading}
+              >
+                <Landmark className="w-4 h-4 mr-2" />
+                Instant Demo Access
+              </Button>
+
               {(!isTermsAccepted) && <p className="text-xs text-center text-red-500 mt-1">Accept terms to enable login</p>}
 
               <p className="text-center text-sm text-muted-foreground">
