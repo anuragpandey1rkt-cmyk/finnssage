@@ -9,9 +9,9 @@ export interface ChatMessage {
 
 const groqService = {
     async chat(messages: ChatMessage[]) {
-        if (!GROQ_API_KEY) {
+        if (!GROQ_API_KEY || GROQ_API_KEY === 'undefined') {
             console.error("Groq API Key missing");
-            return "Error: API Key missing. Please set VITE_GROQ_API_KEY.";
+            return "Error: API Key is missing or invalid in Vercel Environment Variables. Please set VITE_GROQ_API_KEY.";
         }
 
         try {
@@ -31,16 +31,16 @@ const groqService = {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = await response.json().catch(() => ({}));
                 console.error("Groq API Error:", errorData);
-                throw new Error(`Groq API Error: ${response.status}`);
+                return `Error: Groq API request failed (${response.status}). ${errorData.error?.message || ''}`;
             }
 
             const data = await response.json();
             return data.choices?.[0]?.message?.content || "No response received.";
-        } catch (error) {
+        } catch (error: any) {
             console.error("Groq Service Error:", error);
-            return "I'm having trouble connecting to my brain (Groq API). Please try again later.";
+            return `Connection Error: ${error.message || 'Unable to reach Groq API'}.`;
         }
     }
 };
