@@ -168,7 +168,7 @@ export default function Login() {
 
         <div className="relative z-10">
           <div className="flex items-center gap-3">
-            <img src="/finsage_logo.jpg" alt="FinSage" className="w-10 h-10 rounded-xl object-contain bg-black" />
+            <img src="/logo_new.jpg" alt="FinSage" className="w-10 h-10 rounded-xl object-contain bg-black" />
             <div>
               <span className="text-xl font-bold">FinSage</span>
               <span className="text-xl text-muted-foreground ml-1">AI</span>
@@ -215,7 +215,7 @@ export default function Login() {
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
-            <img src="/finsage_logo.jpg" alt="FinSage" className="w-10 h-10 rounded-xl object-contain bg-black" />
+            <img src="/logo_new.jpg" alt="FinSage" className="w-10 h-10 rounded-xl object-contain bg-black" />
             <div>
               <span className="text-xl font-bold">FinSage</span>
               <span className="text-xl text-muted-foreground ml-1">AI</span>

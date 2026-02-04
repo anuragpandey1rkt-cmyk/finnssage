@@ -136,7 +136,7 @@ export function AppSidebar() {
       {/* Logo */}
       <div className="flex items-center h-16 px-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <img src="/finsage_logo.jpg" alt="FinSage" className="w-8 h-8 rounded-lg object-contain bg-black" />
+          <img src="/logo_new.jpg" alt="FinSage" className="w-8 h-8 rounded-lg object-contain bg-black" />
           {!collapsed && (
             <div className="flex flex-col">
               <span className="text-sm font-bold text-sidebar-primary-foreground">
