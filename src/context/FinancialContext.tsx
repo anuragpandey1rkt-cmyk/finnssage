@@ -127,6 +127,7 @@ export function FinancialProvider({ children }: { children: ReactNode }) {
       return [];
     }
 
+    console.log("Fetched transactions:", data);
     return (data as Transaction[]) || [];
   };
 
