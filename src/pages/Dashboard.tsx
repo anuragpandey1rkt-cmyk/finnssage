@@ -147,12 +147,12 @@ export default function Dashboard() {
         }
 
         const transactionsToSave = parsedTransactions.map((t) => ({
-          date: t.date,
+          date: t.date instanceof Date ? t.date.toISOString().split('T')[0] : t.date,
           description: t.description,
           amount: t.type === "expense" ? -Math.abs(t.amount) : Math.abs(t.amount),
           category: t.category,
           type: t.type,
-          source: sourceType as "csv_upload" | "pdf_upload",
+          source: "statement_upload" as const,
         }));
 
         await addTransactions(transactionsToSave);

@@ -11,7 +11,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
         autoRefreshToken: true,
         persistSession: true,
-        detectSessionInUrl: true
+        detectSessionInUrl: true,
+        // Override navigator.locks with a simple immediate callback to avoid AbortError
+        lock: async (name: string, acquireTimeout: number, callback: () => Promise<any>) => {
+            // Simply execute the callback immediately without using navigator.locks
+            return await callback();
+        },
+        // Use localStorage instead of sessionStorage for better persistence
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     },
     global: {
         headers: { 'x-application-name': 'finsage-ai' }
@@ -39,7 +46,7 @@ export interface Transaction {
     amount: number;
     category: string;
     type: 'income' | 'expense';
-    source: 'manual' | 'csv_upload' | 'pdf_upload';
+    source: 'manual' | 'statement_upload' | 'recurring';
     created_at: string;
 }
 

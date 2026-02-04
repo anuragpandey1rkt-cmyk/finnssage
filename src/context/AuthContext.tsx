@@ -24,27 +24,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [session, setSession] = useState<Session | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Fetch user profile from database
-    const fetchProfile = async (userId: string): Promise<Profile | null> => {
-        try {
-            const { data, error } = await supabase
-                .from("profiles")
-                .select("*")
-                .eq("id", userId)
-                .single();
+    // Fetch user profile from database with retry
+    const fetchProfile = async (userId: string, retries = 3): Promise<Profile | null> => {
+        for (let attempt = 0; attempt < retries; attempt++) {
+            try {
+                const { data, error } = await supabase
+                    .from("profiles")
+                    .select("*")
+                    .eq("id", userId)
+                    .single();
 
-            if (error) {
-                // PGRST116 = no rows returned, which is expected for new users
-                if (error.code !== "PGRST116") {
+                if (error) {
+                    // PGRST116 = no rows returned, which is expected for new users
+                    if (error.code === "PGRST116") {
+                        return null;
+                    }
+                    if (attempt < retries - 1) {
+                        console.warn(`Profile fetch attempt ${attempt + 1} failed, retrying...`);
+                        await new Promise(r => setTimeout(r, 1000));
+                        continue;
+                    }
                     console.error("Error fetching profile:", error);
+                    return null;
                 }
+                return data as Profile;
+            } catch (err) {
+                if (attempt < retries - 1) {
+                    await new Promise(r => setTimeout(r, 1000));
+                    continue;
+                }
+                console.error("Exception fetching profile:", err);
                 return null;
             }
-            return data as Profile;
-        } catch (err) {
-            console.error("Exception fetching profile:", err);
-            return null;
         }
+        return null;
     };
 
     // Create profile if it doesn't exist
@@ -77,8 +90,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Initialize auth state
     const initializeAuth = async () => {
         try {
-            // Create a timeout promise that resolves after 3 seconds
-            const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 3000));
+            // Create a timeout promise that resolves after 10 seconds (increased for slow connections)
+            const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 10000));
 
             // Create the session fetch promise
             const sessionPromise = supabase.auth.getSession();
