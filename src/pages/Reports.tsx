@@ -150,19 +150,19 @@ export default function Reports() {
                     <tr key={index} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
                       <td className="py-4 font-medium">{report.month}</td>
                       <td className="py-4 text-right text-success">
-                        +${report.income.toLocaleString()}
+                        +₹{report.income.toLocaleString()}
                       </td>
                       <td className="py-4 text-right text-destructive">
-                        -${report.expenses.toLocaleString()}
+                        -₹{report.expenses.toLocaleString()}
                       </td>
                       <td className="py-4 text-right font-semibold">
-                        ${report.savings.toLocaleString()}
+                        ₹{report.savings.toLocaleString()}
                       </td>
                       <td className="py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <TrendingUp className="w-4 h-4 text-success" />
                           <span className="text-success">
-                            +${report.netWorthChange.toLocaleString()}
+                            +₹{report.netWorthChange.toLocaleString()}
                           </span>
                         </div>
                       </td>

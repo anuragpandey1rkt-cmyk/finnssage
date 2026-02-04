@@ -79,7 +79,7 @@ const automationRules = [
     description: "Round up every purchase to the nearest dollar and save the difference",
     enabled: true,
     icon: Sparkles,
-    impact: "+$45/month avg",
+    impact: "+₹45/month avg",
   },
   {
     id: 2,
@@ -87,15 +87,15 @@ const automationRules = [
     description: "Transfer 20% of each paycheck to savings automatically",
     enabled: true,
     icon: Calendar,
-    impact: "+$1,080/month",
+    impact: "+₹1,080/month",
   },
   {
     id: 3,
     name: "Spare change investing",
-    description: "Invest round-ups in your portfolio when balance reaches $50",
+    description: "Invest round-ups in your portfolio when balance reaches ₹50",
     enabled: false,
     icon: TrendingUp,
-    impact: "+$45/month avg",
+    impact: "+₹45/month avg",
   },
   {
     id: 4,
@@ -128,7 +128,7 @@ export default function Goals() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Saved</p>
-                  <p className="text-2xl font-bold">${totalProgress.toLocaleString()}</p>
+                  <p className="text-2xl font-bold">₹{totalProgress.toLocaleString()}</p>
                 </div>
                 <Target className="w-8 h-8 text-success" />
               </div>
@@ -143,7 +143,7 @@ export default function Goals() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Monthly Savings</p>
-                  <p className="text-2xl font-bold">$2,900</p>
+                  <p className="text-2xl font-bold">₹2,900</p>
                 </div>
                 <DollarSign className="w-8 h-8 text-primary" />
               </div>
@@ -216,7 +216,7 @@ export default function Goals() {
                       <label className="text-sm font-medium">Target Amount</label>
                       <input
                         type="text"
-                        placeholder="$0.00"
+                        placeholder="₹0.00"
                         className="w-full h-10 px-3 rounded-lg bg-secondary/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                       />
                     </div>
@@ -232,7 +232,7 @@ export default function Goals() {
                     <label className="text-sm font-medium">Monthly Contribution</label>
                     <input
                       type="text"
-                      placeholder="$0.00"
+                      placeholder="₹0.00"
                       className="w-full h-10 px-3 rounded-lg bg-secondary/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                     />
                   </div>
@@ -246,7 +246,7 @@ export default function Goals() {
             {goals.map((goal) => {
               const progress = Math.round((goal.current / goal.target) * 100);
               const remaining = goal.target - goal.current;
-              
+
               return (
                 <Card key={goal.id} className="hover:shadow-lg transition-all duration-300">
                   <CardContent className="pt-6">
@@ -269,8 +269,8 @@ export default function Goals() {
                       {/* Progress bar */}
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
-                          <span>${goal.current.toLocaleString()}</span>
-                          <span className="text-muted-foreground">${goal.target.toLocaleString()}</span>
+                          <span>₹{goal.current.toLocaleString()}</span>
+                          <span className="text-muted-foreground">₹{goal.target.toLocaleString()}</span>
                         </div>
                         <div className="h-3 rounded-full bg-secondary overflow-hidden">
                           <div
@@ -284,12 +284,12 @@ export default function Goals() {
                       <div className="flex items-center justify-between pt-2 border-t border-border">
                         <div>
                           <p className="text-xs text-muted-foreground">Remaining</p>
-                          <p className="font-semibold">${remaining.toLocaleString()}</p>
+                          <p className="font-semibold">₹{remaining.toLocaleString()}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-xs text-muted-foreground">Monthly</p>
                           <p className="font-semibold text-primary">
-                            ${goal.monthlyContribution}/mo
+                            ₹{goal.monthlyContribution}/mo
                           </p>
                         </div>
                         <Badge variant={progress >= 75 ? "success" : progress >= 50 ? "info" : "muted"}>
@@ -320,14 +320,12 @@ export default function Goals() {
               {rules.map((rule) => (
                 <div
                   key={rule.id}
-                  className={`flex items-center justify-between p-4 rounded-lg border ${
-                    rule.enabled ? "bg-secondary/30 border-primary/20" : "bg-secondary/10 border-border/50"
-                  }`}
+                  className={`flex items-center justify-between p-4 rounded-lg border ${rule.enabled ? "bg-secondary/30 border-primary/20" : "bg-secondary/10 border-border/50"
+                    }`}
                 >
                   <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      rule.enabled ? "bg-primary/20" : "bg-secondary"
-                    }`}>
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${rule.enabled ? "bg-primary/20" : "bg-secondary"
+                      }`}>
                       <rule.icon className={`w-5 h-5 ${rule.enabled ? "text-primary" : "text-muted-foreground"}`} />
                     </div>
                     <div>
