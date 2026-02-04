@@ -19,7 +19,8 @@ import {
   Activity,
   Zap,
   Briefcase,
-  Globe
+  Globe,
+  Target
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -315,6 +316,7 @@ export default function Dashboard() {
                     />
                   </AreaChart>
                 </ResponsiveContainer>
+                {/* <div className="flex items-center justify-center h-full text-muted-foreground">Chart Loading...</div> */}
               </div>
             </CardContent>
           </Card>
