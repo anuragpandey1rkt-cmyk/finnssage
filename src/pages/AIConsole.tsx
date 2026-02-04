@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Bot,
   Send,
@@ -7,18 +7,17 @@ import {
   ThumbsUp,
   ThumbsDown,
   Copy,
-  RefreshCw,
-  ChevronRight,
+  Lightbulb,
+  ArrowRight,
   CheckCircle2,
   XCircle,
-  AlertCircle,
-  ArrowRight,
-  Lightbulb,
+  AlertCircle
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import groqService, { ChatMessage } from "../services/groqService";
 
 interface Message {
   id: number;
@@ -36,85 +35,88 @@ const initialMessages: Message[] = [
   {
     id: 1,
     role: "assistant",
-    content: "Hello! I'm your FinSage AI assistant. I've analyzed your financial data and have some recommendations ready. What would you like to explore?",
-    timestamp: "10:30 AM",
-  },
-  {
-    id: 2,
-    role: "user",
-    content: "I noticed my spending is higher this month. What's going on?",
-    timestamp: "10:31 AM",
-  },
-  {
-    id: 3,
-    role: "assistant",
-    content: "I've analyzed your January spending and found some key insights:\n\n**Spending Overview:**\n- Total: ₹4,447 (12% higher than December)\n- Biggest increase: Dining (+40%)\n- Unusual transaction: ₹450 at Best Buy\n\n**Root Causes:**\n1. Holiday-related dining expenses carried into January\n2. One-time electronics purchase\n3. 3 new subscription services added\n\nWould you like me to suggest ways to reduce spending this month?",
-    timestamp: "10:31 AM",
-    reasoning: "I identified these patterns by comparing your current month's transactions against your 6-month average, flagging categories with >20% variance and any single transactions over ₹200.",
-  },
-  {
-    id: 4,
-    role: "user",
-    content: "Yes, what do you recommend?",
-    timestamp: "10:32 AM",
-  },
-  {
-    id: 5,
-    role: "assistant",
-    content: "Based on your spending patterns and goals, here are my recommendations:\n\n**Immediate Actions:**",
-    timestamp: "10:32 AM",
-    actions: [
-      { type: "approve", label: "Cancel unused Peacock subscription (₹599/mo)" },
-      { type: "approve", label: "Set dining budget alert at ₹40,000/mo" },
-      { type: "info", label: "Switch groceries to AMEX Gold for 4x points" },
-    ],
-    reasoning: "These recommendations are based on: (1) Your Peacock subscription shows 0 activity in 90 days, (2) Your dining spending exceeds budget 4 of last 6 months, (3) You're leaving 3x points on the table with current grocery card usage.",
-  },
+    content: "Hello! I'm your FinSage AI assistant powered by Groq (Llama 3). I can analyze markets, explain concepts, or help with your portfolio. What's on your mind?",
+    timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+  }
 ];
 
 const suggestedPrompts = [
   "How can I save more this month?",
-  "Am I on track for my savings goal?",
-  "Which credit card should I use for travel?",
-  "Show me my investment performance",
+  "Explain Bitcoin vs Ethereum",
+  "What is a 'Stop Loss'?",
+  "Analyze current market sentiment",
 ];
 
 export default function AIConsole() {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
-  const [showReasoning, setShowReasoning] = useState<number | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const handleSend = () => {
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isTyping]);
+
+  const handleSend = async () => {
     if (!input.trim()) return;
 
-    const newMessage: Message = {
-      id: messages.length + 1,
+    const userMsg: Message = {
+      id: Date.now(),
       role: "user",
       content: input,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
 
-    setMessages([...messages, newMessage]);
+    setMessages(prev => [...prev, userMsg]);
     setInput("");
+    setIsTyping(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse: Message = {
-        id: messages.length + 2,
+    // Prepare history for API
+    const apiMessages: ChatMessage[] = messages.concat(userMsg).map(m => ({
+      role: m.role,
+      content: m.content
+    }));
+
+    // Add System Prompt
+    apiMessages.unshift({
+      role: "system",
+      content: "You are FinSage, a helpful and knowledgeable financial AI assistant. Provide concise, accurate, and actionable financial advice. Use markdown formatting like bolding key terms or lists. If asked about real-time stock prices, clarify that you provide general analysis based on your training data."
+    });
+
+    try {
+      const responseContent = await groqService.chat(apiMessages);
+
+      const aiMsg: Message = {
+        id: Date.now() + 1,
         role: "assistant",
-        content: "I understand you're asking about \"" + input + "\". Let me analyze your financial data to provide personalized insights...\n\nBased on my analysis, I can see several opportunities to optimize your finances. Would you like me to elaborate on any specific area?",
+        content: responseContent,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
-      setMessages(prev => [...prev, aiResponse]);
-    }, 1000);
+
+      setMessages(prev => [...prev, aiMsg]);
+    } catch (error) {
+      console.error("Chat Error:", error);
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        role: "assistant",
+        content: "Sorry, I encountered an error connecting to the server. Please try again.",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      }]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   return (
-    <DashboardLayout title="AI Console" subtitle="Your intelligent financial assistant">
+    <DashboardLayout title="AI Console" subtitle="Powered by Groq LPU™ Inference Engine">
       <div className="grid gap-6 lg:grid-cols-3 h-[calc(100vh-12rem)]">
         {/* Chat Interface */}
         <div className="lg:col-span-2 flex flex-col">
-          <Card className="flex-1 flex flex-col overflow-hidden">
+          <Card className="flex-1 flex flex-col overflow-hidden border-primary/20">
             {/* Messages */}
             <CardContent className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4">
               {messages.map((message) => (
@@ -125,105 +127,74 @@ export default function AIConsole() {
                   {/* Avatar */}
                   <div
                     className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${message.role === "assistant"
-                        ? "bg-gradient-to-br from-primary to-info"
-                        : "bg-secondary"
+                      ? "bg-gradient-to-br from-primary to-blue-600 shadow-lg"
+                      : "bg-secondary"
                       }`}
                   >
                     {message.role === "assistant" ? (
-                      <Bot className="w-4 h-4 text-primary-foreground" />
+                      <Bot className="w-4 h-4 text-white" />
                     ) : (
                       <User className="w-4 h-4 text-muted-foreground" />
                     )}
                   </div>
 
                   {/* Message content */}
-                  <div className={`flex-1 max-w-[80%] ${message.role === "user" ? "text-right" : ""}`}>
+                  <div className={`flex-1 max-w-[85%] ${message.role === "user" ? "text-right" : ""}`}>
                     <div
-                      className={`inline-block p-4 rounded-2xl ${message.role === "assistant"
-                          ? "bg-secondary/50 text-left"
-                          : "bg-primary text-primary-foreground"
+                      className={`inline-block p-4 rounded-2xl shadow-sm ${message.role === "assistant"
+                        ? "bg-secondary/40 text-left border border-border/50"
+                        : "bg-primary text-primary-foreground"
                         }`}
                     >
-                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
 
-                      {/* Actions */}
+                      {/* Actions (Legacy support) */}
                       {message.actions && (
                         <div className="mt-4 space-y-2">
                           {message.actions.map((action, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center gap-2 p-3 rounded-lg bg-background/50 border border-border/50"
-                            >
-                              {action.type === "approve" && (
-                                <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
-                              )}
-                              {action.type === "reject" && (
-                                <XCircle className="w-4 h-4 text-destructive shrink-0" />
-                              )}
-                              {action.type === "info" && (
-                                <AlertCircle className="w-4 h-4 text-info shrink-0" />
-                              )}
-                              <span className="flex-1 text-sm">{action.label}</span>
-                              <Button variant="ghost" size="sm" className="shrink-0">
-                                {action.type === "approve" ? "Approve" : action.type === "reject" ? "Dismiss" : "Learn More"}
-                              </Button>
+                            <div key={index} className="flex items-center gap-2 p-2 rounded bg-background/50 border border-border/50">
+                              <CheckCircle2 className="w-4 h-4 text-success" />
+                              <span className="text-xs">{action.label}</span>
                             </div>
                           ))}
                         </div>
                       )}
                     </div>
 
-                    {/* Message meta */}
-                    <div className={`flex items-center gap-2 mt-1 ${message.role === "user" ? "justify-end" : ""}`}>
-                      <span className="text-xs text-muted-foreground">{message.timestamp}</span>
-                      {message.role === "assistant" && (
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-6 w-6">
-                            <ThumbsUp className="w-3 h-3" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-6 w-6">
-                            <ThumbsDown className="w-3 h-3" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-6 w-6">
-                            <Copy className="w-3 h-3" />
-                          </Button>
-                          {message.reasoning && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 text-xs"
-                              onClick={() => setShowReasoning(showReasoning === message.id ? null : message.id)}
-                            >
-                              <Lightbulb className="w-3 h-3 mr-1" />
-                              Why?
-                            </Button>
-                          )}
-                        </div>
-                      )}
+                    {/* Timestamp */}
+                    <div className="mt-1 text-[10px] text-muted-foreground opacity-70 px-1">
+                      {message.timestamp}
                     </div>
-
-                    {/* Reasoning panel */}
-                    {message.reasoning && showReasoning === message.id && (
-                      <div className="mt-2 p-3 rounded-lg bg-info/10 border border-info/20 text-left">
-                        <p className="text-xs font-medium text-info mb-1">AI Reasoning</p>
-                        <p className="text-xs text-muted-foreground">{message.reasoning}</p>
-                      </div>
-                    )}
                   </div>
                 </div>
               ))}
+
+              {isTyping && (
+                <div className="flex gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center">
+                    <Bot className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="bg-secondary/40 p-4 rounded-2xl border border-border/50">
+                    <div className="flex gap-1">
+                      <span className="w-2 h-2 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                      <span className="w-2 h-2 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                      <span className="w-2 h-2 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
             </CardContent>
 
             {/* Input */}
-            <div className="p-4 border-t border-border">
-              {/* Suggested prompts */}
+            <div className="p-4 border-t border-border bg-background/50 backdrop-blur-sm">
               <div className="flex flex-wrap gap-2 mb-3">
                 {suggestedPrompts.map((prompt) => (
                   <Button
                     key={prompt}
                     variant="outline"
                     size="sm"
-                    className="text-xs"
+                    className="text-xs rounded-full border-primary/20 hover:bg-primary/5"
                     onClick={() => setInput(prompt)}
                   >
                     {prompt}
@@ -237,11 +208,12 @@ export default function AIConsole() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                  placeholder="Ask me anything about your finances..."
-                  className="flex-1 h-11 px-4 rounded-lg bg-secondary/50 border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  placeholder="Ask FinSage (Llama 3 70B)..."
+                  disabled={isTyping}
+                  className="flex-1 h-11 px-4 rounded-xl bg-secondary/30 border border-border text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
                 />
-                <Button onClick={handleSend} size="lg">
-                  <Send className="w-4 h-4" />
+                <Button onClick={handleSend} size="lg" disabled={!input.trim() || isTyping} className="rounded-xl w-12 px-0">
+                  <Send className="w-5 h-5" />
                 </Button>
               </div>
             </div>
@@ -251,29 +223,29 @@ export default function AIConsole() {
         {/* Side Panel */}
         <div className="space-y-4">
           {/* AI Status */}
-          <Card>
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <Sparkles className="w-5 h-5 text-primary" />
                   <span className="absolute -top-1 -right-1 w-2 h-2 bg-success rounded-full animate-pulse" />
                 </div>
-                <CardTitle className="text-base">AI Status</CardTitle>
+                <CardTitle className="text-base">System Status</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Provider</span>
+                  <Badge variant="outline" className="text-xs border-orange-500/50 text-orange-500 bg-orange-500/10">Groq Inc.</Badge>
+                </div>
+                <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Model</span>
-                  <Badge variant="secondary">FinSage Pro</Badge>
+                  <span className="text-sm font-medium">Llama 3 70B</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Last Data Sync</span>
-                  <span className="text-sm">5 min ago</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Context</span>
-                  <span className="text-sm text-success">Full Access</span>
+                  <span className="text-sm text-muted-foreground">Latency</span>
+                  <span className="text-sm text-success font-mono">&lt; 300ms</span>
                 </div>
               </div>
             </CardContent>
@@ -282,35 +254,33 @@ export default function AIConsole() {
           {/* Quick Actions */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Quick Actions</CardTitle>
+              <CardTitle className="text-base">Quick Analysis</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {[
-                "Generate spending report",
-                "Analyze investment portfolio",
-                "Check upcoming bills",
-                "Review credit score",
+                "Analyze my risk profile",
+                "Explain Dollar Cost Averaging",
+                "Pros/Cons of Crypto",
+                "Retirement planning basics",
               ].map((action) => (
                 <Button
                   key={action}
                   variant="ghost"
-                  className="w-full justify-between h-auto py-3"
+                  className="w-full justify-between h-auto py-3 hover:bg-secondary/50"
                   onClick={() => setInput(action)}
                 >
-                  <span className="text-sm">{action}</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <span className="text-sm text-left">{action}</span>
+                  <ArrowRight className="w-4 h-4 opacity-50" />
                 </Button>
               ))}
             </CardContent>
           </Card>
 
           {/* Disclaimer */}
-          <Card className="bg-secondary/30">
+          <Card className="bg-secondary/20 border-border/50">
             <CardContent className="pt-4">
-              <p className="text-xs text-muted-foreground">
-                <strong>Note:</strong> AI suggestions are for informational purposes only.
-                Always review recommendations before taking action. FinSage AI does not
-                execute transactions without explicit user approval.
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                <strong>Disclaimer:</strong> AI responses are generated by Large Language Models and may contain inaccuracies. FinSage does not provide professional financial advice. Always verify information independently.
               </p>
             </CardContent>
           </Card>
