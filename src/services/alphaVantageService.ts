@@ -75,38 +75,23 @@ const alphaVantageService = {
 
     async getStockDetails(symbol: string) {
         try {
-            console.log(`[Alpha Vantage] Fetching ${symbol}...`);
-
             // Fetch quote and time series in parallel
             const [quoteData, timeSeriesData] = await Promise.all([
                 this.getGlobalQuote(symbol),
                 this.getTimeSeriesDaily(symbol)
             ]);
 
-            console.log(`[Alpha Vantage] Quote data:`, quoteData);
-            console.log(`[Alpha Vantage] Time series data:`, timeSeriesData);
-
             if (!quoteData || !quoteData['Global Quote']) {
-                console.error(`[Alpha Vantage] No Global Quote found`);
                 return null;
             }
 
             const quote = quoteData['Global Quote'];
-            console.log(`[Alpha Vantage] Quote object:`, quote);
-
             const price = parseFloat(quote['05. price'] || '0');
             const change = parseFloat(quote['09. change'] || '0');
             const changePercent = parseFloat(quote['10. change percent']?.replace('%', '') || '0');
             const volume = parseFloat(quote['06. volume'] || '0');
             const high = parseFloat(quote['03. high'] || '0');
             const low = parseFloat(quote['04. low'] || '0');
-
-            console.log(`[Alpha Vantage] Parsed price: ${price}`);
-
-            if (!price || price === 0) {
-                console.error(`[Alpha Vantage] Price is zero or invalid`);
-                return null;
-            }
 
             // Process time series for chart
             let candles: any = { s: 'no_data', t: [], c: [], o: [], h: [], l: [], v: [] };

@@ -1,7 +1,5 @@
 import alphaVantageService from './alphaVantageService';
 import finnhubService from './finnhubService';
-import demoStockService from './demoStockService';
-import backendStockService from './backendStockService';
 
 /**
  * Hybrid Stock Data Service - OPTIMIZED FOR BOTH INDIAN & US STOCKS
@@ -22,27 +20,6 @@ const stockDataService = {
         // INDIAN STOCKS - Alpha Vantage FIRST
         // ========================================
         if (isIndianStock) {
-            // ========================================
-            // 1. TRY BACKEND (Yahoo Finance) FIRST - Best for Fundamentals
-            // ========================================
-            try {
-                console.log(`[Hybrid] 🇮🇳 Trying Backend Service (Yahoo) for ${symbol}...`);
-                const backendData = await backendStockService.getStockDetails(symbol);
-
-                if (backendData && backendData.price > 0) {
-                    console.log(`[Hybrid] ✅ Backend Custom Service SUCCESS`);
-                    return {
-                        ...backendData,
-                        source: 'Yahoo Finance (Backend)'
-                    };
-                }
-            } catch (error) {
-                console.log(`[Hybrid] ❌ Backend Service failed:`, error);
-            }
-
-            // ========================================
-            // 2. Alpha Vantage
-            // ========================================
             try {
                 console.log(`[Hybrid] 🇮🇳 Trying Alpha Vantage for Indian stock ${symbol}...`);
                 const alphaData = await alphaVantageService.getStockDetails(symbol);
@@ -120,26 +97,6 @@ const stockDataService = {
                 }
             } catch (error) {
                 console.log(`[Hybrid] ❌ Alpha Vantage fallback failed:`, error);
-            }
-        }
-
-        // ========================================
-        // FINAL FALLBACK: Demo Data for Indian Stocks
-        // ========================================
-        if (isIndianStock) {
-            try {
-                console.log(`[Hybrid] 🎭 Trying Demo Service for ${symbol}...`);
-                const demoData = await demoStockService.getStockDetails(symbol);
-
-                if (demoData && demoData.price > 0) {
-                    console.log(`[Hybrid] ✅ Demo Service SUCCESS - Price: ${demoData.currencySymbol}${demoData.price.toFixed(2)} (DEMO DATA)`);
-                    return {
-                        ...demoData,
-                        source: 'Demo Data (API Limit Reached)'
-                    };
-                }
-            } catch (error) {
-                console.log(`[Hybrid] ❌ Demo Service failed:`, error);
             }
         }
 
