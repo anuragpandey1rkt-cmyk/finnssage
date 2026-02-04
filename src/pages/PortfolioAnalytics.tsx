@@ -89,7 +89,7 @@ export default function PortfolioAnalytics() {
                 <Card>
                     <CardContent className="pt-4 pb-4">
                         <p className="text-xs text-muted-foreground">Total Portfolio Value</p>
-                        <p className="text-2xl font-bold">${totalValue.toLocaleString()}</p>
+                        <p className="text-2xl font-bold">₹{totalValue.toLocaleString()}</p>
                         <div className={`flex items-center gap-1 text-xs ${dayChange >= 0 ? "text-success" : "text-destructive"}`}>
                             {dayChange >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                             <span>{dayChange >= 0 ? "+" : ""}{dayChange.toFixed(2)} ({dayChangePercent.toFixed(2)}%) today</span>
@@ -101,7 +101,7 @@ export default function PortfolioAnalytics() {
                     <CardContent className="pt-4 pb-4">
                         <p className="text-xs text-muted-foreground">Total Gain/Loss</p>
                         <p className={`text-2xl font-bold ${totalGain >= 0 ? "text-success" : "text-destructive"}`}>
-                            {totalGain >= 0 ? "+" : ""}${totalGain.toLocaleString()}
+                            {totalGain >= 0 ? "+" : ""}₹{totalGain.toLocaleString()}
                         </p>
                         <p className={`text-xs ${totalGain >= 0 ? "text-success" : "text-destructive"}`}>
                             {totalGain >= 0 ? "+" : ""}{totalGainPercent.toFixed(2)}% all-time
@@ -157,7 +157,7 @@ export default function PortfolioAnalytics() {
                                     <YAxis hide />
                                     <Tooltip
                                         contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "0.5rem" }}
-                                        formatter={(value: number) => [`$${value.toLocaleString()}`, ""]}
+                                        formatter={(value: number) => [`₹${value.toLocaleString()}`, ""]}
                                     />
                                     <Legend />
                                     <Area type="monotone" dataKey="value" name="Portfolio" stroke="#6366f1" fillOpacity={1} fill="url(#colorPortfolio)" strokeWidth={2} />
@@ -193,7 +193,7 @@ export default function PortfolioAnalytics() {
                                             <Cell key={`cell-${index}`} fill={entry.color} />
                                         ))}
                                     </Pie>
-                                    <Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`, ""]} />
+                                    <Tooltip formatter={(value: number) => [`₹${value.toLocaleString()}`, ""]} />
                                 </RechartsPie>
                             </ResponsiveContainer>
                         </div>
@@ -205,7 +205,7 @@ export default function PortfolioAnalytics() {
                                         <span>{item.name}</span>
                                     </div>
                                     <div className="text-right">
-                                        <span className="font-medium">${item.value.toLocaleString()}</span>
+                                        <span className="font-medium">₹{item.value.toLocaleString()}</span>
                                         <span className="text-muted-foreground ml-2">({((item.value / totalValue) * 100).toFixed(0)}%)</span>
                                     </div>
                                 </div>
@@ -255,14 +255,14 @@ export default function PortfolioAnalytics() {
                                                     </div>
                                                 </td>
                                                 <td className="text-right py-3">{holding.shares}</td>
-                                                <td className="text-right py-3">${holding.avgCost.toFixed(2)}</td>
-                                                <td className="text-right py-3 font-medium">${holding.currentPrice.toFixed(2)}</td>
+                                                <td className="text-right py-3">₹{holding.avgCost.toFixed(2)}</td>
+                                                <td className="text-right py-3 font-medium">₹{holding.currentPrice.toFixed(2)}</td>
                                                 <td className={`text-right py-3 ${holding.change >= 0 ? "text-success" : "text-destructive"}`}>
                                                     {holding.change >= 0 ? "+" : ""}{holding.changePercent.toFixed(2)}%
                                                 </td>
-                                                <td className="text-right py-3 font-medium">${holding.value.toLocaleString()}</td>
+                                                <td className="text-right py-3 font-medium">₹{holding.value.toLocaleString()}</td>
                                                 <td className={`text-right py-3 font-medium ${pl >= 0 ? "text-success" : "text-destructive"}`}>
-                                                    {pl >= 0 ? "+" : ""}${pl.toFixed(2)}
+                                                    {pl >= 0 ? "+" : ""}₹{pl.toFixed(2)}
                                                     <span className="text-xs ml-1">({plPercent >= 0 ? "+" : ""}{plPercent.toFixed(1)}%)</span>
                                                 </td>
                                             </tr>
@@ -292,7 +292,7 @@ export default function PortfolioAnalytics() {
                                     </div>
                                     <div className="text-right">
                                         <p className="font-bold text-success">+{holding.changePercent.toFixed(2)}%</p>
-                                        <p className="text-xs text-success">+${holding.change.toFixed(2)}</p>
+                                        <p className="text-xs text-success">+₹{holding.change.toFixed(2)}</p>
                                     </div>
                                 </div>
                             ))}
@@ -315,7 +315,7 @@ export default function PortfolioAnalytics() {
                                     </div>
                                     <div className="text-right">
                                         <p className="font-bold text-destructive">{holding.changePercent.toFixed(2)}%</p>
-                                        <p className="text-xs text-destructive">${holding.change.toFixed(2)}</p>
+                                        <p className="text-xs text-destructive">₹{holding.change.toFixed(2)}</p>
                                     </div>
                                 </div>
                             ))}

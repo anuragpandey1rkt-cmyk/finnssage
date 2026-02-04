@@ -49,12 +49,12 @@ const insights = [
   {
     type: "warning",
     title: "Dining spending up 40%",
-    description: "You've spent $892 on dining this month, which is 40% higher than your 3-month average of $637.",
+    description: "You've spent ₹892 on dining this month, which is 40% higher than your 3-month average of ₹637.",
   },
   {
-    type: "success", 
+    type: "success",
     title: "Subscription savings found",
-    description: "You have 3 streaming services. Consider bundling or choosing one to save $20/month.",
+    description: "You have 3 streaming services. Consider bundling or choosing one to save ₹20/month.",
   },
   {
     type: "info",
@@ -94,7 +94,7 @@ export default function Spending() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Spending</p>
-                  <p className="text-2xl font-bold">${totalSpending.toLocaleString()}</p>
+                  <p className="text-2xl font-bold">₹{totalSpending.toLocaleString()}</p>
                 </div>
                 <TrendingDown className="w-8 h-8 text-warning" />
               </div>
@@ -109,7 +109,7 @@ export default function Spending() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Daily Average</p>
-                  <p className="text-2xl font-bold">${Math.round(totalSpending / 30)}</p>
+                  <p className="text-2xl font-bold">₹{Math.round(totalSpending / 30)}</p>
                 </div>
                 <PieChart className="w-8 h-8 text-muted-foreground" />
               </div>
@@ -125,7 +125,7 @@ export default function Spending() {
                   <p className="text-2xl font-bold">74%</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-muted-foreground">of $6,000</p>
+                  <p className="text-xs text-muted-foreground">of ₹6,000</p>
                 </div>
               </div>
               <div className="mt-3 h-2 rounded-full bg-secondary overflow-hidden">
@@ -172,7 +172,7 @@ export default function Spending() {
                         <span className="font-medium">{category.name}</span>
                       </div>
                       <div className="text-right">
-                        <span className="font-semibold">${category.amount.toLocaleString()}</span>
+                        <span className="font-semibold">₹{category.amount.toLocaleString()}</span>
                         <span className="text-xs text-muted-foreground ml-2">
                           {category.percent}%
                         </span>
@@ -200,17 +200,16 @@ export default function Spending() {
                 {monthlyComparison.map((month) => {
                   const maxSpending = Math.max(...monthlyComparison.map(m => m.spending));
                   const heightPercent = (month.spending / maxSpending) * 100;
-                  
+
                   return (
                     <div key={month.month} className="flex-1 flex flex-col items-center gap-2">
-                      <span className="text-sm font-semibold">${(month.spending / 1000).toFixed(1)}k</span>
+                      <span className="text-sm font-semibold">₹{(month.spending / 1000).toFixed(1)}k</span>
                       <div className="w-full bg-secondary rounded-t-lg overflow-hidden flex-1 relative">
                         <div
-                          className={`absolute bottom-0 w-full rounded-t-lg transition-all duration-500 ${
-                            month.current 
-                              ? "bg-gradient-to-t from-primary to-info" 
+                          className={`absolute bottom-0 w-full rounded-t-lg transition-all duration-500 ${month.current
+                              ? "bg-gradient-to-t from-primary to-info"
                               : "bg-muted-foreground/30"
-                          }`}
+                            }`}
                           style={{ height: `${heightPercent}%` }}
                         />
                       </div>
@@ -237,13 +236,12 @@ export default function Spending() {
                 {insights.map((insight, index) => (
                   <div
                     key={index}
-                    className={`p-3 rounded-lg ${
-                      insight.type === "warning"
+                    className={`p-3 rounded-lg ${insight.type === "warning"
                         ? "card-warning"
                         : insight.type === "success"
-                        ? "card-success"
-                        : "bg-info/10 border-l-4 border-info"
-                    }`}
+                          ? "card-success"
+                          : "bg-info/10 border-l-4 border-info"
+                      }`}
                   >
                     <p className="text-sm font-medium">{insight.title}</p>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -284,7 +282,7 @@ export default function Spending() {
                         <td className="py-3">
                           <Badge variant="muted">{merchant.category}</Badge>
                         </td>
-                        <td className="py-3 text-right font-semibold">${merchant.amount.toFixed(2)}</td>
+                        <td className="py-3 text-right font-semibold">₹{merchant.amount.toFixed(2)}</td>
                         <td className="py-3 text-right text-muted-foreground">{merchant.transactions}</td>
                         <td className="py-3 text-right">
                           <Button variant="ghost" size="icon" className="h-8 w-8">
