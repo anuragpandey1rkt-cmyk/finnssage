@@ -1,0 +1,60 @@
+import yfinance as yf
+import pandas as pd
+from datetime import datetime, timedelta
+
+def fetch_stock_data(symbol: str, period="6mo", interval="1d") -> pd.DataFrame:
+    """
+    Fetches historical OHLCV data for a given symbol.
+    
+    Args:
+        symbol (str): Stock ticker symbol.
+        period (str): Data period to download (default: "6mo").
+        interval (str): Data interval (default: "1d").
+        
+    Returns:
+        pd.DataFrame: DataFrame containing Open, High, Low, Close, Volume.
+                      Returns empty DataFrame if data is not found or invalid.
+    """
+    try:
+        # Ticker object
+        ticker = yf.Ticker(symbol)
+        
+        # Download history
+        df = ticker.history(period=period, interval=interval)
+        
+        if df.empty:
+            return pd.DataFrame()
+
+        # Ensure we have the columns we need
+        required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+        if not all(col in df.columns for col in required_cols):
+             return pd.DataFrame()
+             
+        # Reset index to make Date a column if it's currently the index
+        df = df.reset_index()
+        
+        # Ensure Date is timezone naive or consistent? 
+        # API often returns timezone-aware. Let's keep it as is for now but ensure it's sorted.
+        df['Date'] = pd.to_datetime(df['Date'])
+        df = df.sort_values('Date')
+        
+        return df[required_cols + ['Date']]
+        
+    except Exception as e:
+        print(f"Error fetching data for {symbol}: {e}")
+        return pd.DataFrame()
+    import yfinance as yf
+
+def fetch_stock_history(symbol: str, period="6mo"):
+    df = yf.download(symbol, period=period, interval="1d")
+    df = df.reset_index()
+
+    history = []
+    for _, row in df.iterrows():
+        history.append({
+            "date": row["Date"].strftime("%Y-%m-%d"),
+            "close": round(float(row["Close"]), 2)
+        })
+
+    return history
+

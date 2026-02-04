@@ -1,0 +1,262 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* FinSage AI Design System - Premium Dark Fintech Theme */
+
+@layer base {
+  :root {
+    /* Light mode fallback - rarely used */
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+    
+    --popover: 224 50% 8%;
+    --popover-foreground: 210 40% 98%;
+    
+    --primary: 160 84% 39%;
+    --primary-foreground: 210 40% 98%;
+    
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 160 84% 39%;
+    
+    --radius: 0.75rem;
+    
+    /* Fintech specific tokens */
+    --success: 160 84% 39%;
+    --success-foreground: 210 40% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 11%;
+    --info: 199 89% 48%;
+    --info-foreground: 210 40% 98%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(160 84% 39%), hsl(180 76% 42%));
+    --gradient-card: linear-gradient(145deg, hsl(224 50% 12%), hsl(222 47% 8%));
+    --gradient-glass: linear-gradient(135deg, hsla(217, 33%, 17%, 0.6), hsla(217, 33%, 12%, 0.4));
+    --gradient-hero: linear-gradient(135deg, hsl(160 84% 39% / 0.15), hsl(199 89% 48% / 0.1));
+    --gradient-danger: linear-gradient(135deg, hsl(0 84% 60% / 0.15), hsl(0 72% 50% / 0.1));
+    --gradient-warning: linear-gradient(135deg, hsl(38 92% 50% / 0.15), hsl(32 95% 44% / 0.1));
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.3);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.3), 0 2px 4px -2px hsl(0 0% 0% / 0.2);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.3), 0 4px 6px -4px hsl(0 0% 0% / 0.2);
+    --shadow-glow: 0 0 20px hsl(160 84% 39% / 0.3);
+    
+    /* Sidebar */
+    --sidebar-background: 224 50% 6%;
+    --sidebar-foreground: 215 20% 75%;
+    --sidebar-primary: 160 84% 39%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 217 33% 14%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 12%;
+    --sidebar-ring: 160 84% 39%;
+  }
+
+  .dark {
+    --background: 224 50% 4%;
+    --foreground: 210 40% 98%;
+    
+    --card: 224 50% 6%;
+    --card-foreground: 210 40% 98%;
+    
+    --popover: 224 50% 5%;
+    --popover-foreground: 210 40% 98%;
+    
+    --primary: 160 84% 39%;
+    --primary-foreground: 210 40% 98%;
+    
+    --secondary: 217 33% 14%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 217 33% 14%;
+    --muted-foreground: 215 20% 55%;
+    
+    --accent: 217 33% 14%;
+    --accent-foreground: 210 40% 98%;
+    
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --border: 217 33% 12%;
+    --input: 217 33% 14%;
+    --ring: 160 84% 39%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply dark;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01", "ss03";
+  }
+}
+
+@layer components {
+  /* Glass card effect */
+  .glass-card {
+    @apply bg-card/60 backdrop-blur-xl border border-border/50 rounded-xl;
+    background: var(--gradient-glass);
+  }
+  
+  /* Metric cards with glow */
+  .metric-card {
+    @apply relative overflow-hidden bg-card border border-border/50 rounded-xl p-6;
+    background: var(--gradient-card);
+  }
+  
+  .metric-card::before {
+    content: '';
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+    background: var(--gradient-hero);
+  }
+  
+  .metric-card:hover::before {
+    @apply opacity-100;
+  }
+  
+  /* Success state cards */
+  .card-success {
+    @apply border-l-4;
+    border-left-color: hsl(var(--success));
+    background: var(--gradient-hero);
+  }
+  
+  /* Warning state cards */
+  .card-warning {
+    @apply border-l-4;
+    border-left-color: hsl(var(--warning));
+    background: var(--gradient-warning);
+  }
+  
+  /* Danger state cards */
+  .card-danger {
+    @apply border-l-4;
+    border-left-color: hsl(var(--destructive));
+    background: var(--gradient-danger);
+  }
+  
+  /* Text gradient */
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+  }
+  
+  /* Pulse animation for live indicators */
+  .pulse-live {
+    @apply relative;
+  }
+  
+  .pulse-live::after {
+    content: '';
+    @apply absolute w-2 h-2 rounded-full bg-success animate-ping;
+    top: 0;
+    right: 0;
+  }
+  
+  /* Chart placeholder styling */
+  .chart-placeholder {
+    @apply bg-secondary/30 rounded-lg flex items-center justify-center;
+    min-height: 200px;
+  }
+  
+  /* Sidebar active item */
+  .sidebar-item-active {
+    @apply bg-sidebar-accent text-sidebar-primary font-medium;
+    box-shadow: inset 3px 0 0 hsl(var(--sidebar-primary));
+  }
+}
+
+@layer utilities {
+  /* Custom scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted)) transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-muted rounded-full;
+  }
+  
+  /* Fade in animation */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Slide up animation */
+  .animate-slide-up {
+    animation: slideUp 0.4s ease-out;
+  }
+  
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Number ticker animation */
+  .animate-number {
+    animation: numberPop 0.4s ease-out;
+  }
+  
+  @keyframes numberPop {
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+}
