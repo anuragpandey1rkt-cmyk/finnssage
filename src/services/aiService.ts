@@ -121,6 +121,67 @@ Return JSON format ONLY:
             console.error("AI Analysis Error:", e);
             return null;
         }
+    },
+
+    // Used for parsing bank statement PDFs
+    async analyzeBankStatement(pdfText: string) {
+        if (!API_KEY) {
+            throw new Error("AI API Key not configured. Please add VITE_OPENROUTER_API_KEY to .env");
+        }
+
+        try {
+            const prompt = `
+Analyze this bank statement text and extract all transactions.
+
+Bank Statement Text:
+${pdfText.substring(0, 8000)}
+
+Extract each transaction and return as JSON array:
+[
+    {
+        "date": "YYYY-MM-DD",
+        "description": "Transaction description",
+        "amount": 1234.56,
+        "type": "income" or "expense",
+        "category": "Category name"
+    }
+]
+
+Rules:
+- Positive amounts or credits = "income"
+- Negative amounts or debits = "expense"
+- Use these categories: Income, Food & Dining, Transport, Entertainment, Shopping, Utilities, UPI Transfer, Bank Transfer, Cash Withdrawal, Other
+- Return ONLY the JSON array, no markdown code blocks
+
+JSON:`;
+
+            const text = await openRouterCall([{ role: "user", content: prompt }]);
+            if (!text) {
+                throw new Error("AI service unavailable");
+            }
+
+            // Clean markdown if present
+            const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            try {
+                const transactions = JSON.parse(jsonStr);
+
+                // Convert date strings to Date objects
+                return transactions.map((t: any) => ({
+                    date: new Date(t.date),
+                    description: t.description || 'Unknown',
+                    amount: Math.abs(parseFloat(t.amount) || 0),
+                    type: t.type === 'income' ? 'income' : 'expense',
+                    category: t.category || 'Other'
+                }));
+            } catch (jsonError) {
+                console.error("AI returned invalid JSON:", text);
+                throw new Error("Failed to parse AI response");
+            }
+        } catch (e) {
+            console.error("Bank Statement Analysis Error:", e);
+            throw e;
+        }
     }
 };
 

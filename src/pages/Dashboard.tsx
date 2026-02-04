@@ -43,7 +43,7 @@ import { CurrencyToggle } from "@/components/CurrencyToggle";
 import { FinancialHealthMeter } from "@/components/FinancialHealthMeter";
 import { QuickActions } from "@/components/QuickActions";
 import { useToast } from "@/hooks/use-toast";
-import { parseCSVAsync, parsePDFAsync } from "@/lib/statementParser";
+import { parseCSVAsync, parsePDFAsync, parseExcelAsync } from "@/lib/statementParser";
 
 // Milestones will be calculated dynamically based on financials
 
@@ -105,13 +105,15 @@ export default function Dashboard() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const isCSV = file.name.endsWith(".csv");
-    const isPDF = file.name.endsWith(".pdf");
+    const fileName = file.name.toLowerCase();
+    const isCSV = fileName.endsWith(".csv");
+    const isPDF = fileName.endsWith(".pdf");
+    const isExcel = fileName.endsWith(".xlsx") || fileName.endsWith(".xls");
 
-    if (!isCSV && !isPDF) {
+    if (!isCSV && !isPDF && !isExcel) {
       toast({
         title: "Invalid file format",
-        description: "Please upload a CSV or PDF bank statement.",
+        description: "Please upload an Excel (.xlsx, .xls), CSV, or PDF bank statement.",
         variant: "destructive",
       });
       return;
@@ -126,21 +128,31 @@ export default function Dashboard() {
         if (!content) return;
 
         let parsedTransactions;
+        let sourceType: "csv_upload" | "pdf_upload" | "excel_upload";
 
         if (isCSV) {
           parsedTransactions = await parseCSVAsync(content as string);
+          sourceType = "csv_upload";
+        } else if (isExcel) {
+          parsedTransactions = await parseExcelAsync(content as ArrayBuffer);
+          sourceType = "excel_upload";
         } else {
-          // PDF parsing using Gemini AI (via parsedPDFAsync)
+          // PDF parsing using Gemini AI
           parsedTransactions = await parsePDFAsync(content as ArrayBuffer);
+          sourceType = "pdf_upload";
+        }
+
+        if (parsedTransactions.length === 0) {
+          throw new Error("No transactions found in the statement. Please check the file format.");
         }
 
         const transactionsToSave = parsedTransactions.map((t) => ({
           date: t.date,
           description: t.description,
-          amount: t.type === "expense" ? -t.amount : t.amount,
+          amount: t.type === "expense" ? -Math.abs(t.amount) : Math.abs(t.amount),
           category: t.category,
           type: t.type,
-          source: (isCSV ? "csv_upload" : "pdf_upload") as "csv_upload" | "pdf_upload",
+          source: sourceType as "csv_upload" | "pdf_upload",
         }));
 
         await addTransactions(transactionsToSave);
@@ -148,7 +160,7 @@ export default function Dashboard() {
 
         toast({
           title: "Statement Analyzed!",
-          description: `Successfully extracted ${transactionsToSave.length} transactions using AI.`,
+          description: `Successfully extracted ${transactionsToSave.length} transactions from your bank statement.`,
         });
 
       } catch (err) {
@@ -384,7 +396,7 @@ export default function Dashboard() {
                   type="file"
                   ref={fileInputRef}
                   className="hidden"
-                  accept=".csv,.pdf"
+                  accept=".csv,.pdf,.xlsx,.xls"
                   onChange={handleFileChange}
                 />
                 <Button
