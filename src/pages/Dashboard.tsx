@@ -263,7 +263,18 @@ export default function Dashboard() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Financial Trajectory</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    Financial Trajectory
+                    {hasRealData ? (
+                      <Badge variant="outline" className="text-emerald-500 border-emerald-500/50 text-[10px] h-5 px-1.5">
+                        Running on Live Data
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-amber-500 border-amber-500/50 text-[10px] h-5 px-1.5">
+                        Demo Mode
+                      </Badge>
+                    )}
+                  </CardTitle>
                   <p className="text-xs text-muted-foreground md:mt-1">Income vs Expenses Analysis</p>
                 </div>
                 <div className="flex gap-2">
